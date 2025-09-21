@@ -63,6 +63,45 @@ export class MotorDeRender {
     }
   }
 
+
+  // === Borde neón por segmentos (con progreso opcional) ===
+private drawHexNeon(g: Graphics, pts: number[], width: number, progress?: number){
+  const C1 = 0xA100FF; // magenta
+  const C2 = 0x00F6FF; // cian
+
+  const segsPerEdge = 10;        // segmentos por lado
+  const total = segsPerEdge * 6; // 6 lados
+  const cutoff = Math.max(0, Math.min(total, Math.round((progress ?? 1) * total)));
+
+  let k = 0;
+  for (let e = 0; e < 6; e++){
+    const i0 = e * 2;
+    const i1 = ((e + 1) % 6) * 2;
+    const ax = pts[i0],     ay = pts[i0 + 1];
+    const bx = pts[i1],     by = pts[i1 + 1];
+
+    for (let s = 0; s < segsPerEdge; s++){
+      if (k++ >= cutoff) return;
+      const t0 = s / segsPerEdge, t1 = (s + 1) / segsPerEdge;
+      const x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0;
+      const x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
+
+      const col = this._lerpColor(C1, C2, (e + t0) / 6); // degrada a lo largo del perímetro
+      g.moveTo(x0, y0).lineTo(x1, y1)
+       .stroke({ color: col, width, alpha: 0.95, alignment: 0.5 });
+    }
+  }
+}
+
+private _lerpColor(c1:number, c2:number, t:number){
+  const r1=(c1>>16)&255, g1=(c1>>8)&255, b1=c1&255;
+  const r2=(c2>>16)&255, g2=(c2>>8)&255, b2=c2&255;
+  const r = Math.round(r1+(r2-r1)*t);
+  const g = Math.round(g1+(g2-g1)*t);
+  const b = Math.round(b1+(b2-b1)*t);
+  return (r<<16)|(g<<8)|b;
+}
+
   // ===== main render =====
   renderWorld(w: World) {
     this.hexUsed = this.foodUsed = this.hazardUsed = this.antUsed = 0;
@@ -73,6 +112,8 @@ export class MotorDeRender {
     this.syncHazards(w);
     this.syncAnts(w);
     this.drawQueen(w);
+
+
 
     this.hideRest(this.hexPool, this.hexUsed);
     this.hideRest(this.foodPool, this.foodUsed);
@@ -148,12 +189,12 @@ export class MotorDeRender {
       const cx = (h as any).cx;
       const cy = (h as any).cy;
 
-      const pts: number[] = [];
-      for (let i = 0; i < 6; i++) {
-        const a = Math.PI / 3 * i + Math.PI / 6;
-        pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
-      }
-      g.poly(pts).stroke({ color: 0xff3abf, width: 3, alignment: 0.5 });
+     const pts: number[] = [];
+for (let i = 0; i < 6; i++) {
+  const a = Math.PI / 3 * i + Math.PI / 6;
+  pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
+}
+this.drawHexNeon(g, pts, 3); 
 // progreso de construcción: ilumina el contorno según built/target
 const built = (h as any).builtUnits ?? 0;
 const target = (h as any).targetUnits ?? 0;
@@ -249,3 +290,4 @@ if (!done && target > 0 && built > 0) {
     }
   }
 }
+
