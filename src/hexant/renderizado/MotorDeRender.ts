@@ -154,7 +154,36 @@ export class MotorDeRender {
         pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
       }
       g.poly(pts).stroke({ color: 0xff3abf, width: 3, alignment: 0.5 });
+// progreso de construcción: ilumina el contorno según built/target
+const built = (h as any).builtUnits ?? 0;
+const target = (h as any).targetUnits ?? 0;
+const done = !!(h as any).completed;
+if (!done && target > 0 && built > 0) {
+  // vértices como pares {x,y}
+  const verts: Array<{x:number,y:number}> = [];
+  for (let i=0;i<6;i++){
+    const a = Math.PI/3*i + Math.PI/6;
+    verts.push({ x: cx + r*Math.cos(a), y: cy + r*Math.sin(a) });
+  }
+  const total = Math.min(1, built / target) * 6;
+  const full = Math.floor(total);
+  const partial = total - full;
 
+  // empieza en el primer vértice
+  g.moveTo(verts[0].x, verts[0].y);
+  for (let i=1; i<=full; i++){
+    const v = verts[i % 6];
+    g.lineTo(v.x, v.y);
+  }
+  if (partial > 0){
+    const a = verts[full % 6];
+    const b = verts[(full + 1) % 6];
+    const px = a.x + (b.x - a.x) * partial;
+    const py = a.y + (b.y - a.y) * partial;
+    g.lineTo(px, py);
+  }
+  g.stroke({ color: 0xff3abf, width: 4, alpha: 0.95 });
+}
       // huevos "colocados" en el hex (spots + born)
       const born = (h as any).eggs?.born ?? 0;
       const spots = (h as any).eggs?.spots as Array<{ x: number, y: number }> | undefined;

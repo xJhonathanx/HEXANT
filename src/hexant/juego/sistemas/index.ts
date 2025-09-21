@@ -1,43 +1,32 @@
-﻿import { SistemaBuilder } from "./SistemaBuilder";
-import type { World } from "../../tipos";
+﻿import type { World } from "../../tipos";
 import type { Cfg } from "../configuracion/predeterminados";
 
 import { SistemaSemilla } from "./SistemaSemilla";
 import { SistemaReina } from "./SistemaReina";
 import { SistemaIA } from "./SistemaIA";
-import { SistemaCria } from "./SistemaCria";
-import { SistemaCriaLogistica } from "./SistemaCriaLogistica";
-import { SistemaPlanificacion } from "./SistemaPlanificacion";
 import { SistemaMetabolismo } from "./SistemaMetabolismo";
 
-export function ejecutarSistemas(w:World, cfg:Cfg){
+import { SistemaPlanificacion } from "./SistemaPlanificacion";
+import { SistemaBuilder } from "./SistemaBuilder";
+
+export function ejecutarSistemas(w: World, cfg: Cfg) {
   (w as any)._tick = ((w as any)._tick ?? 0) + 1;
 
-  // 1) Semilla: garantiza 1 builder + 3 workers
+  // 1) Semilla (3 obreras + 1 constructora)
   SistemaSemilla(w, cfg);
 
-  // 2) Reina (postura con costo/banco)
-  if (typeof SistemaReina === "function") SistemaReina(w, cfg);
+  // 2) Reina (pone huevos y cobra del banco)
+  SistemaReina(w, cfg);
 
-  // 3) Logística de cría (mover huevos al hex objetivo)
-  if (typeof SistemaCriaLogistica === "function") SistemaCriaLogistica(w);
+  // 3) Planificar nuevo hex si hay 6 huevos en la reina y una constructora
+  SistemaPlanificacion(w, cfg);
 
-  // 4) Desarrollo / eclosión
-  if (typeof SistemaCria === "function") SistemaCria(w, cfg);
+  // 4) Construcción: la constructora avanza el hex objetivo consumiendo banco
+  SistemaBuilder(w, cfg);
 
-  // 5) IA (obreras/constructora) + metabolismo
+  // 5) IA de hormigas (forrajeo, etc.)
   if (typeof SistemaIA === "function") SistemaIA(w, cfg);
+
+  // 6) Metabolismo, etc.
   if (typeof SistemaMetabolismo === "function") SistemaMetabolismo(w, cfg);
-
-  // 6) Planificación de nuevo hex (sólo con 6 huevos listos y constructora viva)
-  const m = w.meta;
-  if (m && m.broodEggsStaged >= 6 && !m.broodTransferPending && w.ants.some(a=>a.kind==="builder")){
-    SistemaPlanificacion(w, cfg);
-  SistemaBuilder(w);
-  }
 }
-
-
-
-
-

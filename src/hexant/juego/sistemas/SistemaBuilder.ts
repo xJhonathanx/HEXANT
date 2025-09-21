@@ -1,37 +1,31 @@
 ﻿import type { World } from "../../tipos";
+import type { Cfg } from "../configuracion/predeterminados";
 
-const SPEED = 0.9;          // velocidad de la constructora
-const DAMP  = 0.86;         // amortiguación
-const BUILD_RATE = 0.08;    // unidades por tick construyendo
+const BUILD_COST_DEFAULT = 100;
+const BUILD_RATE_PER_TICK = 2; // cuántas und del coste se construye por tick
 
-export function SistemaBuilder(w: World){
-  const b = w.ants.find(a => a.kind === "builder");
-  if (!b) return;
+export function SistemaBuilder(w: World, _cfg: Cfg) {
+  const m: any = (w as any).meta;
+  if (!m?.buildTargetHexId) return;
 
-  const targetId = w.meta?.broodTargetHexId ?? null;
-  if (!targetId) return;
+  const h = w.hexes.find(x => x.id === m.buildTargetHexId) as any;
+  if (!h) { m.buildTargetHexId = null; return; }
+  if (h.completed) { m.buildTargetHexId = null; return; }
 
-  const h = w.hexes.find(x => (x as any).id === targetId);
-  if (!h || (h as any).completed) return;
+  const bank = (w as any).stockFood ?? 0;
+  if (bank <= 0) return;
 
-  // moverse hacia el centro del hex objetivo
-  const dx = (h as any).cx - b.x;
-  const dy = (h as any).cy - b.y;
-  const d2 = dx*dx + dy*dy;
-  const d  = Math.sqrt(d2) || 1;
+  const target = h.targetUnits ?? BUILD_COST_DEFAULT;
+  const built = h.builtUnits ?? 0;
+  const need  = Math.max(0, target - built);
+  if (need <= 0) { h.completed = true; m.buildTargetHexId = null; return; }
 
-  b.vx = b.vx * DAMP + (dx / d) * SPEED;
-  b.vy = b.vy * DAMP + (dy / d) * SPEED;
-  b.x += b.vx; b.y += b.vy;
+  const step = Math.min(BUILD_RATE_PER_TICK, need, bank);
+  h.builtUnits = built + step;
+  (w as any).stockFood = bank - step;
 
-  // martillar si ya está encima
-  const near = d < ((h as any).sidePx ?? 24) * 0.7;
-  if (near){
-    (h as any).builtUnits = ((h as any).builtUnits ?? 0) + BUILD_RATE;
-    const goal = (h as any).targetUnits ?? 6;
-    if ((h as any).builtUnits >= goal){
-      (h as any).completed = true;
-      if (w.meta) w.meta.buildCooldownTicks = 90; // respiro antes de otro plan
-    }
+  if (h.builtUnits >= target) {
+    h.completed = true;
+    m.buildTargetHexId = null;
   }
 }
