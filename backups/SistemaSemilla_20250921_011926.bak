@@ -1,0 +1,26 @@
+﻿import type { World } from "../../tipos";
+import type { Cfg } from "../configuracion/predeterminados";
+
+let seeded = false;
+
+/** Crea 1 builder y 3 workers si faltan. Solo una vez por sesión. */
+export function SistemaSemilla(w:World, _cfg:Cfg){
+  if (seeded) return;
+  const q = w.hexes.find(h=> (h as any).host === "queen");
+  if (!q) return;
+
+  const mk = (kind:"worker"|"builder") => w.ants.push({
+    id: w.nextAntId++,
+    kind,
+    x: (q as any).cx, y: (q as any).cy, vx:0, vy:0,
+    carryingUnits: 0,
+    state: "foraging",
+    homeHexId: (q as any).id,
+  } as any);
+
+  if (!w.ants.some(a=> (a as any).kind === "builder")) mk("builder");
+  const workers = w.ants.filter(a=> (a as any).kind === "worker").length;
+  for (let i=workers; i<3; i++) mk("worker");
+
+  seeded = true;
+}

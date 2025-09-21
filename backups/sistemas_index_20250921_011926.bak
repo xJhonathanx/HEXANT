@@ -1,5 +1,4 @@
-﻿import { SistemaBuilder } from "./SistemaBuilder";
-import type { World } from "../../tipos";
+﻿import type { World } from "../../tipos";
 import type { Cfg } from "../configuracion/predeterminados";
 
 import { SistemaSemilla } from "./SistemaSemilla";
@@ -33,11 +32,6 @@ export function ejecutarSistemas(w:World, cfg:Cfg){
   const m = w.meta;
   if (m && m.broodEggsStaged >= 6 && !m.broodTransferPending && w.ants.some(a=>a.kind==="builder")){
     SistemaPlanificacion(w, cfg);
-  SistemaBuilder(w);
   }
 }
-
-
-
-
 

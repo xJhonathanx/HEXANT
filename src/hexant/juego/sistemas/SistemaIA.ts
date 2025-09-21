@@ -1,18 +1,20 @@
-﻿import type { World } from "../../tipos";
+﻿import { builderBrain } from "../inteligencia/cerebros/BuilderBrain";
+import type { World } from "../../tipos";
 import type { Cfg } from "../configuracion/predeterminados";
 import { workerBrain } from "../inteligencia/cerebros/Cerebros";
 
 export function SistemaIA(w:World, _cfg:Cfg){
-  const q = w.hexes.find(h=>h.host==="queen");
+  const q = w.hexes.find(h=> (h as any).host==="queen");
   const cx = q?.cx ?? 0, cy = q?.cy ?? 0;
   const anyFood = w.food.find(f=> (f.amount ?? 0) > 0);
 
-  for(const a of w.ants){
+  for (const a of w.ants){
     if (a.kind === "worker"){
-      // Obreras: misma lógica de siempre (con hint opcional a anyFood)
-      workerBrain(w, a as any);
+      // Mantén la firma que ya usabas para obreras
+      (workerBrain as any)(w, a as any, cx, cy, anyFood as any);
+    } else if (a.kind === "builder"){
+      builderBrain(w as any, a as any, cx, cy);
     }
-    // Nota: la constructora es controlada por SistemaHuevos.
   }
 }
 

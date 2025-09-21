@@ -81,7 +81,8 @@ export default function Aplicacion() {
       if (onCtx && app) app.canvas.removeEventListener("contextmenu", onCtx as any);
       if (overlay) overlay.destroy();
       if (qfx) qfx.destroy();
-      if (motor) { try { (motor as any).destroy?.(); } catch {} }if (app) app.destroy(true, { children: true, texture: true });
+      if (motor) motor.destroy();
+      if (app) app.destroy(true, { children: true, texture: true });
     };
   }, []);
 
@@ -93,7 +94,6 @@ export default function Aplicacion() {
     />
   );
 }
-
 
 
 

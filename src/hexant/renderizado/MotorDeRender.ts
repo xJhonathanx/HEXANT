@@ -1,33 +1,11 @@
-﻿import { Application, Container, Graphics, Text } from "pixi.js";
+﻿// E:\GAME\HEXANTV1\src\hexant\renderizado\MotorDeRender.ts
+import { Application, Container, Graphics, Text } from "pixi.js";
 import type { World, Ant } from "../tipos";
+import { drawAnt } from "./renderizadores/HormigaRender";
+
 export class MotorDeRender {
-    private drawQueen(w:World){
-    const q = w.hexes.find(h => (h as any).host === "queen");
-    if (!q) { this.queenG.visible = false; return; }
-
-    if (this.queenG.parent !== this.fx) this.fx.addChild(this.queenG);
-    this.queenG.visible = true;
-    this.queenG.clear();
-
-    // cuerpo de la reina
-    const R = 10;
-    this.queenG.circle(q.cx, q.cy, R).fill(0xfff1a8, 1.0);
-    this.queenG.circle(q.cx, q.cy, R + 3).stroke({ color: 0xffe26a, width: 2, alpha: 0.7 });
-
-    // huevos orbitando alrededor de la reina
-    const eggs = (w.eggs ?? []).filter(e => e.state === "atQueen");
-    const t = (w as any)._tick ?? 0;
-    const n = eggs.length;
-    if (n > 0){
-      const ringR = R + 18;
-      for (let i = 0; i < n; i++){
-        const a = (i / n) * Math.PI * 2 + t * 0.05;
-        const ex = q.cx + Math.cos(a) * ringR;
-        const ey = q.cy + Math.sin(a) * ringR;
-        this.queenG.circle(ex, ey, 3).fill(0xffc14a, 0.95).stroke({ color: 0xff9f2a, width: 1, alpha: 0.9 });
-      }
-    }
-  }
+  // === caches / pools ===
+  private antMap = new Map<number, Graphics>(); // un gráfico por hormiga (persistente)
 
   private queenG: Graphics = new Graphics();
   private app: Application;
@@ -42,19 +20,23 @@ export class MotorDeRender {
   private hud = new Container();
   private hudLabel: Text;
 
-  private hexPool: Graphics[] = [];   private hexUsed = 0;
-  private foodPool: Graphics[] = [];  private foodUsed = 0;
-  private hazardPool: Graphics[] = [];private hazardUsed = 0;
-  private antPool: Graphics[] = [];   private antUsed = 0;
+  private hexPool: Graphics[] = [];    private hexUsed = 0;
+  private foodPool: Graphics[] = [];   private foodUsed = 0;
+  private hazardPool: Graphics[] = []; private hazardUsed = 0;
+  private antPool: Graphics[] = [];    private antUsed = 0;
 
   private domeG: Graphics | null = null;
 
   constructor(app: Application) {
     this.app = app;
+
     this.mundo.addChild(this.layerHex, this.layerFood, this.layerHaz, this.layerAnts);
     this.app.stage.addChild(this.mundo, this.fx, this.hud);
 
-    this.hudLabel = new Text({ text: "", style: { fill: 0xbfd6d6, fontSize: 14, fontFamily: "monospace" }});
+    this.hudLabel = new Text({
+      text: "",
+      style: { fill: 0xbfd6d6, fontSize: 14, fontFamily: "monospace" }
+    });
     this.hudLabel.x = 8; this.hudLabel.y = 6;
     this.hud.addChild(this.hudLabel);
 
@@ -62,116 +44,179 @@ export class MotorDeRender {
     this.app.stage.sortChildren();
   }
 
+  // ===== utils =====
   private getFromPool(pool: Graphics[], parent: Container, i: number): Graphics {
-    if (!pool[i]) { const g = new Graphics(); parent.addChild(g); pool[i] = g; }
-    const g = pool[i]; g.visible = true; return g.clear();
+    if (!pool[i]) {
+      const g = new Graphics();
+      parent.addChild(g);
+      pool[i] = g;
+    }
+    const g = pool[i];
+    g.visible = true;
+    return g.clear();
   }
-  private hideRest(pool: Graphics[], used: number){ for(let i=used;i<pool.length;i++){ pool[i]?.clear(); if(pool[i]) pool[i]!.visible=false; } }
 
-  renderWorld(w: World){
+  private hideRest(pool: Graphics[], used: number) {
+    for (let i = used; i < pool.length; i++) {
+      const g = pool[i];
+      if (g) { g.clear(); g.visible = false; }
+    }
+  }
+
+  // ===== main render =====
+  renderWorld(w: World) {
     this.hexUsed = this.foodUsed = this.hazardUsed = this.antUsed = 0;
 
     this.syncDome(w);
     this.syncHexes(w);
     this.syncFood(w);
     this.syncHazards(w);
-    this.syncAnts(w); this.drawQueen(w);
+    this.syncAnts(w);
+    this.drawQueen(w);
 
     this.hideRest(this.hexPool, this.hexUsed);
     this.hideRest(this.foodPool, this.foodUsed);
     this.hideRest(this.hazardPool, this.hazardUsed);
     this.hideRest(this.antPool, this.antUsed);
 
-    const workers = w.ants.filter((a:Ant)=>a.kind==="worker").length;
-    const builders = w.ants.filter((a:Ant)=>a.kind==="builder").length;
-    const soldiers = w.ants.filter((a:Ant)=>a.kind==="soldier").length;
-    const foods = w.food.filter((f:any)=>f.amount>0).length;
+    // HUD
+    const workers = w.ants.filter((a: Ant) => a.kind === "worker").length;
+    const builders = w.ants.filter((a: Ant) => a.kind === "builder").length;
+    const soldiers = w.ants.filter((a: Ant) => a.kind === "soldier").length;
+    const foods = w.food.filter((f: any) => (f.amount ?? 0) > 0).length;
     const hazards = w.hazards.length;
-    const eggs = (w.meta?.broodEggsStaged ?? 0) | 0;
     const bank = Math.round((w as any).stockFood ?? 0);
-    this.hudLabel.text = `W:${workers}  B:${builders}  S:${soldiers} | Food:${foods} Haz:${hazards} | Banco:${bank} | Huevos:${w.eggs?.filter((e:any)=> e.state==="atQueen").length ?? 0}`;
+    const eggsAtQueen = (w.eggs ?? []).filter((e: any) => e.state === "atQueen").length;
+    this.hudLabel.text =
+      `W:${workers}  B:${builders}  S:${soldiers} | Food:${foods} Haz:${hazards} | Banco:${bank} | Huevos:${eggsAtQueen}`;
   }
 
-  // === DOMO ===
-  private syncDome(w:World){
+  // ===== dome =====
+  private syncDome(w: World) {
     const q = w.hexes.find(h => (h as any).host === "queen");
     if (!q) return;
-    if (!this.domeG){ this.domeG = new Graphics(); this.fx.addChildAt(this.domeG, 0); }
-    const r = (w as any).domeRadius ?? (w as any).smellRadius ?? (q.sidePx * 6);
-    this.domeG!.clear()
-      .circle(q.cx, q.cy, r)
+
+    if (!this.domeG) {
+      this.domeG = new Graphics();
+      this.fx.addChildAt(this.domeG, 0);
+    }
+    const r = (w as any).domeRadius ?? (w as any).smellRadius ?? ((q as any).sidePx * 6);
+    this.domeG
+      .clear()
+      .circle((q as any).cx, (q as any).cy, r)
       .stroke({ color: 0x0aa3a3, width: 2, alpha: 0.55, alignment: 0.5 });
   }
 
-  // === HEXÁGONOS ===
-  private syncHexes(w:World){
-    for (const h of w.hexes){
+  // ===== queen + eggs glow/orbit =====
+  private drawQueen(w: World) {
+    const q = w.hexes.find(h => (h as any).host === "queen");
+    if (!q) { this.queenG.visible = false; return; }
+
+    if (this.queenG.parent !== this.fx) this.fx.addChild(this.queenG);
+    this.queenG.visible = true;
+    this.queenG.clear();
+
+    const R = 10;
+    const cx = (q as any).cx, cy = (q as any).cy;
+
+    // cuerpo
+    this.queenG.circle(cx, cy, R).fill(0xfff1a8, 1.0);
+    this.queenG.circle(cx, cy, R + 3).stroke({ color: 0xffe26a, width: 2, alpha: 0.7 });
+
+    // huevos orbitando
+    const eggs = (w.eggs ?? []).filter((e: any) => e.state === "atQueen");
+    const t = (w as any)._tick ?? 0;
+    const n = eggs.length;
+    if (n > 0) {
+      const ringR = R + 18;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + t * 0.05;
+        const ex = cx + Math.cos(a) * ringR;
+        const ey = cy + Math.sin(a) * ringR;
+        this.queenG.circle(ex, ey, 3)
+          .fill(0xffc14a, 0.95)
+          .stroke({ color: 0xff9f2a, width: 1, alpha: 0.9 });
+      }
+    }
+  }
+
+  // ===== hexes (and egg spots inside hexes) =====
+  private syncHexes(w: World) {
+    for (const h of w.hexes) {
       const g = this.getFromPool(this.hexPool, this.layerHex, this.hexUsed++);
-      const r = (h as any).sidePx, cx = (h as any).cx, cy = (h as any).cy;
-      const pts:number[]=[]; for(let i=0;i<6;i++){ const a=Math.PI/3*i+Math.PI/6; pts.push(cx+r*Math.cos(a), cy+r*Math.sin(a)); }
+      const r = (h as any).sidePx;
+      const cx = (h as any).cx;
+      const cy = (h as any).cy;
+
+      const pts: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 3 * i + Math.PI / 6;
+        pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
+      }
       g.poly(pts).stroke({ color: 0xff3abf, width: 3, alignment: 0.5 });
 
-      // puntos de huevos colocados (si existen spots/born)
+      // huevos "colocados" en el hex (spots + born)
       const born = (h as any).eggs?.born ?? 0;
-      const spots = (h as any).eggs?.spots as Array<{x:number,y:number}>|undefined;
-      if (spots && born>0){
-        for (let i=0;i<Math.min(born, spots.length); i++){
-          const p=spots[i];
+      const spots = (h as any).eggs?.spots as Array<{ x: number, y: number }> | undefined;
+      if (spots && born > 0) {
+        const count = Math.min(born, spots.length);
+        for (let i = 0; i < count; i++) {
+          const p = spots[i];
           this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
-            .circle(p.x, p.y, 3).fill(0xffa652, 1);
+            .circle(p.x, p.y, 3)
+            .fill(0xffa652, 1);
         }
       }
     }
   }
 
-  // === COMIDA ===
-  private syncFood(w:World){
-    for (const f of w.food){
-      if (f.amount<=0) continue;
+  // ===== food =====
+  private syncFood(w: World) {
+    for (const f of w.food) {
+      if ((f as any).amount <= 0) continue;
       this.getFromPool(this.foodPool, this.layerFood, this.foodUsed++)
-        .circle(f.x, f.y, 5).fill(0x6cf9ff, 1);
+        .circle((f as any).x, (f as any).y, 5)
+        .fill(0x6cf9ff, 1);
     }
   }
 
-  // === PELIGROS ===
-  private syncHazards(w:World){
-    for (const hz of w.hazards){
+  // ===== hazards =====
+  private syncHazards(w: World) {
+    for (const hz of w.hazards) {
       this.getFromPool(this.hazardPool, this.layerHaz, this.hazardUsed++)
-        .circle(hz.x, hz.y, 10).fill(0xff4b46, 0.9);
+        .circle((hz as any).x, (hz as any).y, 10)
+        .fill(0xff4b46, 0.9);
     }
   }
 
-  // === HORMIGAS ===
-  private syncAnts(w:World){
-    for (const a of w.ants as Ant[]){
-      const g = this.getFromPool(this.antPool, this.layerAnts, this.antUsed++);
-      const r = a.kind==="builder" ? 4 : 3;
-      const base =
-        a.kind==="builder" ? 0xffa652 :
-        a.kind==="soldier" ? 0x73a2ff : 0x59f79b;
+  // ===== ants =====
+  private syncAnts(w: World) {
+    const aliveIds = new Set<number>();
 
-      g.circle(a.x, a.y, r).fill(base, 1);
-      if ((a as any).carryingUnits && (a as any).carryingUnits>0){
-        g.circle(a.x, a.y, r+2).stroke({ color: 0xbdfcc9, width: 2, alignment: 0.5 });
+    for (const a of (w.ants as any[])) {
+      const id = (a as any).id as number;
+      if (id == null) continue;
+      aliveIds.add(id);
+
+      let g = this.antMap.get(id);
+      if (!g) {
+        g = new Graphics();
+        this.mundo.addChild(g);
+        this.antMap.set(id, g);
+      }
+
+      g.x = (a as any).x ?? 0;
+      g.y = (a as any).y ?? 0;
+      drawAnt(g, a as any);
+      g.visible = true;
+    }
+
+    // limpiar hormigas que ya no existen
+    for (const [id, g] of this.antMap) {
+      if (!aliveIds.has(id)) {
+        g.destroy();
+        this.antMap.delete(id);
       }
     }
   }
-
-  destroy(){
-    const kill=(p:Graphics[])=>p.forEach(g=>g?.destroy());
-    kill(this.hexPool); kill(this.foodPool); kill(this.hazardPool); kill(this.antPool);
-    this.mundo.destroy({children:true}); this.fx.destroy({children:true}); this.hud.destroy({children:true});
-  }
 }
-export default MotorDeRender;
-
-
-
-
-
-
-
-
-
-
-
