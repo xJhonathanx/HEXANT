@@ -10,7 +10,7 @@ const DIRS: Array<[number, number]> = [
 
 /** Crea el mundo vacío y poblado mínimamente. */
 export function crearMundoInicial(W:number, H:number): World {
-  return { eggs: [], nextEggId: 1,
+  return {
     ants: [], food: [], hazards: [], corpses: [], beacons: [],
     looseDecos: [], nextDecoId: 1,
     stockFood: 0, stockTotal: 0,
@@ -24,16 +24,6 @@ export function crearMundoInicial(W:number, H:number): World {
 
 /** Bootstrap: crea reina, una semilla de comida y hormigas iniciales. */
 export function bootstrapWorld(w: World, cfg: Cfg, cx: number, cy: number) {
-  // Garantiza reina central si no existe
-  if (!w.hexes.some(h=>h.host==="queen")){
-    const S = 36;
-    w.hexes.push({
-      id: w.nextHexId++,
-      cx, cy, sidePx: S,
-      host: "queen", capacity: 999, occupancy: 0,
-      completed: true, aq: 0, ar: 0
-    } as any);
-  }
   const S = 38;
 
   // Reina
@@ -98,6 +88,4 @@ export function axialToPixelRel(q:number, r:number, side:number){
   return axialToPixelPT(q, r, side);
 }
 export { SistemaPlanificacion } from "./sistemas/SistemaPlanificacion";
-
-
 

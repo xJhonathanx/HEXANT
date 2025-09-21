@@ -1,35 +1,7 @@
 ﻿import { Application, Container, Graphics, Text } from "pixi.js";
 import type { World, Ant } from "../tipos";
+
 export class MotorDeRender {
-    private drawQueen(w:World){
-    const q = w.hexes.find(h => (h as any).host === "queen");
-    if (!q) { this.queenG.visible = false; return; }
-
-    if (this.queenG.parent !== this.fx) this.fx.addChild(this.queenG);
-    this.queenG.visible = true;
-    this.queenG.clear();
-
-    // cuerpo de la reina
-    const R = 10;
-    this.queenG.circle(q.cx, q.cy, R).fill(0xfff1a8, 1.0);
-    this.queenG.circle(q.cx, q.cy, R + 3).stroke({ color: 0xffe26a, width: 2, alpha: 0.7 });
-
-    // huevos orbitando alrededor de la reina
-    const eggs = (w.eggs ?? []).filter(e => e.state === "atQueen");
-    const t = (w as any)._tick ?? 0;
-    const n = eggs.length;
-    if (n > 0){
-      const ringR = R + 18;
-      for (let i = 0; i < n; i++){
-        const a = (i / n) * Math.PI * 2 + t * 0.05;
-        const ex = q.cx + Math.cos(a) * ringR;
-        const ey = q.cy + Math.sin(a) * ringR;
-        this.queenG.circle(ex, ey, 3).fill(0xffc14a, 0.95).stroke({ color: 0xff9f2a, width: 1, alpha: 0.9 });
-      }
-    }
-  }
-
-  private queenG: Graphics = new Graphics();
   private app: Application;
 
   private mundo = new Container();
@@ -75,21 +47,21 @@ export class MotorDeRender {
     this.syncHexes(w);
     this.syncFood(w);
     this.syncHazards(w);
-    this.syncAnts(w); this.drawQueen(w);
+    this.syncAnts(w);
 
     this.hideRest(this.hexPool, this.hexUsed);
     this.hideRest(this.foodPool, this.foodUsed);
     this.hideRest(this.hazardPool, this.hazardUsed);
     this.hideRest(this.antPool, this.antUsed);
 
-    const workers = w.ants.filter((a:Ant)=>a.kind==="worker").length;
-    const builders = w.ants.filter((a:Ant)=>a.kind==="builder").length;
-    const soldiers = w.ants.filter((a:Ant)=>a.kind==="soldier").length;
-    const foods = w.food.filter((f:any)=>f.amount>0).length;
+    const workers = w.ants.filter(a=>a.kind==="worker").length;
+    const builders = w.ants.filter(a=>a.kind==="builder").length;
+    const soldiers = w.ants.filter(a=>a.kind==="soldier").length;
+    const foods = w.food.filter(f=>f.amount>0).length;
     const hazards = w.hazards.length;
     const eggs = (w.meta?.broodEggsStaged ?? 0) | 0;
     const bank = Math.round((w as any).stockFood ?? 0);
-    this.hudLabel.text = `W:${workers}  B:${builders}  S:${soldiers} | Food:${foods} Haz:${hazards} | Banco:${bank} | Huevos:${w.eggs?.filter((e:any)=> e.state==="atQueen").length ?? 0}`;
+    this.hudLabel.text = `W:${workers}  B:${builders}  S:${soldiers} | Food:${foods} Haz:${hazards} | Banco:${bank} | Huevos:${eggs}`;
   }
 
   // === DOMO ===
@@ -164,14 +136,4 @@ export class MotorDeRender {
   }
 }
 export default MotorDeRender;
-
-
-
-
-
-
-
-
-
-
 

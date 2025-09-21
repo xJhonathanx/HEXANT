@@ -10,9 +10,8 @@ export function SistemaIA(w:World, _cfg:Cfg){
   for(const a of w.ants){
     if (a.kind === "worker"){
       // Obreras: misma lógica de siempre (con hint opcional a anyFood)
-      workerBrain(w, a as any);
+      workerBrain(w, a as any, cx, cy, anyFood as any);
     }
     // Nota: la constructora es controlada por SistemaHuevos.
   }
 }
-

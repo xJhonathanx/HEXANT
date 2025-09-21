@@ -1,33 +1,7 @@
 ﻿import { Application, Container, Graphics, Text } from "pixi.js";
 import type { World, Ant } from "../tipos";
 export class MotorDeRender {
-    private drawQueen(w:World){
-    const q = w.hexes.find(h => (h as any).host === "queen");
-    if (!q) { this.queenG.visible = false; return; }
-
-    if (this.queenG.parent !== this.fx) this.fx.addChild(this.queenG);
-    this.queenG.visible = true;
-    this.queenG.clear();
-
-    // cuerpo de la reina
-    const R = 10;
-    this.queenG.circle(q.cx, q.cy, R).fill(0xfff1a8, 1.0);
-    this.queenG.circle(q.cx, q.cy, R + 3).stroke({ color: 0xffe26a, width: 2, alpha: 0.7 });
-
-    // huevos orbitando alrededor de la reina
-    const eggs = (w.eggs ?? []).filter(e => e.state === "atQueen");
-    const t = (w as any)._tick ?? 0;
-    const n = eggs.length;
-    if (n > 0){
-      const ringR = R + 18;
-      for (let i = 0; i < n; i++){
-        const a = (i / n) * Math.PI * 2 + t * 0.05;
-        const ex = q.cx + Math.cos(a) * ringR;
-        const ey = q.cy + Math.sin(a) * ringR;
-        this.queenG.circle(ex, ey, 3).fill(0xffc14a, 0.95).stroke({ color: 0xff9f2a, width: 1, alpha: 0.9 });
-      }
-    }
-  }
+  private drawQueen(_w:World){ /* stub: QueenFX se encarga del glow */ }
 
   private queenG: Graphics = new Graphics();
   private app: Application;
@@ -164,8 +138,6 @@ export class MotorDeRender {
   }
 }
 export default MotorDeRender;
-
-
 
 
 

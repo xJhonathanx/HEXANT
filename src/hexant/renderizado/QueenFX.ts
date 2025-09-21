@@ -1,64 +1,98 @@
-﻿import { Application, Container, Graphics } from "pixi.js";
+﻿import { Application, Container, Graphics, BLEND_MODES } from "pixi.js";
 import type { World } from "../tipos";
 
-/** Capa de FX para la reina: halo brillante + huevos visibles en su hex. */
+/** Overlay de la reina: glow + render de huevos */
 export class QueenFX {
   private app: Application;
-  private root: Container;
+  private layer: Container;
   private glow: Graphics;
-  private eggs: Graphics;
+  private eggsLayer: Container;
+  private eggPool: Graphics[] = [];
+  private eggUsed = 0;
 
-  constructor(app:Application){
+  constructor(app: Application){
     this.app = app;
-    this.root = new Container();
-    this.root.zIndex = 50; // sobre la grilla, bajo el HUD
-    this.app.stage.addChild(this.root);
+    this.layer = new Container();
+    this.layer.zIndex = 50; // sobre la grilla y mundo
+    this.app.stage.addChild(this.layer);
 
     this.glow = new Graphics();
-    this.glow.blendMode = "add";
-    this.root.addChild(this.glow);
+    this.glow.blendMode = 1 as any; // ADD
+    this.layer.addChild(this.glow);
 
-    this.eggs = new Graphics();
-    this.root.addChild(this.eggs);
+    this.eggsLayer = new Container();
+    this.layer.addChild(this.eggsLayer);
+  }
 
-    this.app.stage.sortChildren();
+  private getFromPool(pool: Graphics[], parent: Container, i: number){
+    if (pool[i]) return pool[i];
+    const g = new Graphics();
+    parent.addChild(g);
+    pool[i] = g;
+    return g;
   }
 
   update(w:World){
-    const t = ((w as any)._tick ?? 0);
-    const q = w.hexes.find(h=>h.host==="queen");
+    const t = (w as any)._tick ?? 0;
+
+    // --- Reina ---
+    const q = w.hexes.find(h => h.host === "queen");
     this.glow.clear();
-    this.eggs.clear();
+    if (q){
+      // Glow azul/violeta suave
+      const pulse = 0.5 + 0.5*Math.sin(t*0.12);
+      const r1 = 14 + 4*pulse;
+      const r2 = 24 + 6*pulse;
 
-    if (!q) return;
+      this.glow
+        .circle(q.cx, q.cy, r2).fill(0x5726F4, 0.06).clear()
+        .circle(q.cx, q.cy, r1).fill(0x43C8FF, 0.10).clear()
+        .circle(q.cx, q.cy, 8 ).fill(0xA428FF, 0.12).clear();
+    }
 
-    // --- Halo pulsante (estilo "portal") ---
-    const p1 = 0.6 + 0.4 * Math.sin(t*0.09);
-    const p2 = 0.6 + 0.4 * Math.sin(t*0.13 + 1.2);
-    const r1 = q.sidePx * (0.95 + 0.02*Math.sin(t*0.05));
-    const r2 = q.sidePx * 0.62;
-    const r3 = q.sidePx * 0.38;
+    // --- Huevos ---
+    this.eggUsed = 0;
+    const eggs = (w as any).eggs as any[] | undefined;
+    if (q && eggs && eggs.length){
+      // Colocación/órbita de los que están en la reina
+      const atQueen = eggs.filter(e => e.state === "atQueen");
+      const n = Math.max(1, atQueen.length);
+      for (let i=0;i<atQueen.length;i++){
+        const e = atQueen[i];
+        const ang = (i / n) * Math.PI*2 + t*0.06; // órbita suave
+        const R = 16; // radio del anillo
+        e.x = q.cx + Math.cos(ang)*R;
+        e.y = q.cy + Math.sin(ang)*R;
+      }
 
-    this.glow
-      .circle(q.cx, q.cy, r1).stroke({ width: 2, color: 0x46e6ff, alpha: 0.25 })
-      .circle(q.cx, q.cy, r2).fill(0x7a38ff, 0.20 * p1)
-      .circle(q.cx, q.cy, r3).fill(0x68f6ff, 0.26 * p2);
+      // Pintado (según estado)
+      for (const e of eggs){
+        const g = this.getFromPool(this.eggPool, this.eggsLayer, this.eggUsed++);
+        g.clear();
 
-    // --- Huevos "colocados" en spots del hex ---
-    const born = q.eggs?.born ?? 0;
-    const spots = q.eggs?.spots ?? [];
-    for (let i=0; i<born && i<spots.length; i++){
-      const p = spots[i];
-      this.eggs.circle(p.x, p.y, 3).fill(0xffa64a, 1);
+        if (e.state === "atQueen"){
+          g.circle(e.x, e.y, 3).fill(0xFFA53A, 1);   // naranja vivo
+        } else if (e.state === "incubating"){
+          g.circle(e.x, e.y, 3).fill(0xFF8E2B, 0.9); // naranja más tenue
+        } else if (e.state === "carried"){
+          g.circle(e.x, e.y, 2.6).fill(0xFFD08A, 0.95);
+        }
+      }
+    }
+
+    // Oculta sobrantes del pool
+    for (let i=this.eggUsed;i<this.eggPool.length;i++){
+      const g = this.eggPool[i];
+      if (g) g.clear();
     }
   }
 
   destroy(){
-    this.glow.destroy();
-    this.eggs.destroy();
-    this.root.destroy({ children: true });
+    for (const g of this.eggPool) if (g) g.destroy();
+    this.eggPool.length = 0;
+    this.eggsLayer.destroy({ children: true });
+    this.glow.destroy({ children: false });
+    this.layer.destroy({ children: true });
   }
 }
-
-
 
