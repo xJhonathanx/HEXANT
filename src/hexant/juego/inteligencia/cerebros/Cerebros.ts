@@ -1,99 +1,139 @@
-﻿import type { World, Ant } from "../../tipos";
-import { CARRY_PER_TRIP, EGGS_NEED_UND } from "../../juego/configuracion/predeterminados";
+﻿import type { World, Ant, Hex } from "../../../tipos";
+import { CARRY_PER_TRIP, PICKUP_RADIUS, DROP_RADIUS, SEEK_K, MAX_SPEED } from "../../configuracion/predeterminados";
 
-// Helpers
+// utilidades locales simples
 const d2 = (dx:number,dy:number)=>dx*dx+dy*dy;
-const approach = (a:Ant, tx:number, ty:number, k=0.012)=>{
-  a.vx += (tx - a.x) * k;
-  a.vy += (ty - a.y) * k;
+const approach = (a:Ant, tx:number, ty:number, k=0.015)=>{
+  a.vx = (a.vx??0) + (tx - a.x) * k;
+  a.vy = (a.vy??0) + (ty - a.y) * k;
+  a.x += a.vx; a.y += a.vy;
 };
 
-// Home-hex (si falla, vuelve a la reina)
-function homeCenter(w:World, a:Ant){
-  if (a.homeHexId){
-    const h = w.hexes.find(h=>h.id===a.homeHexId);
-    if (h) return {x:h.cx, y:h.cy};
-  }
-  const Q = w.hexes.find(h=>h.host==="queen")!;
-  return {x:Q.cx,y:Q.cy};
-}
-
-// ================== BRAINS ==================
-
+// === OBRERA: igual que tenías (memoria básica de recolección) ===
 export function workerBrain(w:World, ant:Ant){
-  // smell simple: cualquier comida
-  const f = w.food.find(f=>f.amount>0);
-  if (f){
-    const need = Math.min(CARRY_PER_TRIP, f.amount);
-    const need2 = (need>0);
-    // ir a por comida
-    approach(ant, f.x, f.y, 0.02);
-    if (d2(ant.x-f.x, ant.y-f.y)<16){
-      // carga
-      const take = Math.min(CARRY_PER_TRIP, f.amount);
-      ant.carryingUnits = (ant.carryingUnits||0) + take;
-      f.amount -= take;
+  const a:any = ant;
+  const Q = w.hexes.find(h=>h.host==="queen");
+  if (!Q) return;
+
+  // acercamiento con "snap" y límite de velocidad
+  const approachClamp = (ax:any, tx:number, ty:number):boolean => {
+    const dx = tx - ax.x, dy = ty - ax.y;
+    const d  = Math.hypot(dx, dy);
+    if (d < 1.5){ // llegó
+      ax.x = tx; ax.y = ty;
+      ax.vx = (ax.vx ?? 0) * 0.4;
+      ax.vy = (ax.vy ?? 0) * 0.4;
+      return true;
     }
-    // si va cargado: depositar en hex home:true (reina)
-    if ((ant.carryingUnits||0)>0){
-      const depot = w.hexes.find(h=>h.host==="queen")!;
-      approach(ant, depot.cx, depot.cy, 0.03);
-      if (d2(ant.x-depot.cx, ant.y-depot.cy)<36){
-        w.foodUnits = (w.foodUnits||0) + ant.carryingUnits!;
-        ant.carryingUnits = 0;
+    ax.vx = (ax.vx ?? 0) + dx * SEEK_K;
+    ax.vy = (ax.vy ?? 0) + dy * SEEK_K;
+    const sp = Math.hypot(ax.vx, ax.vy);
+    if (sp > MAX_SPEED){ ax.vx *= MAX_SPEED/sp; ax.vy *= MAX_SPEED/sp; }
+    ax.x += ax.vx; ax.y += ax.vy;
+    return false;
+  };
+
+  const nearestFood = ():any => {
+    let best:any = null, bd = Infinity;
+    for (const f of w.food){
+      const rem = f.amount ?? 0; if (rem <= 0) continue;
+      const dx = f.x - a.x, dy = f.y - a.y;
+      const d  = dx*dx + dy*dy;
+      if (d < bd){ bd = d; best = f; }
+    }
+    return best;
+  };
+
+  a.state = a.state ?? "seekFood";
+
+  // Sin carga -> buscar comida (mantiene target si aún existe)
+  if ((a.carryingUnits ?? 0) <= 0){
+    if (!a._target || (a._target.amount ?? 0) <= 0){
+      a._target = nearestFood();
+      if (!a._target){
+        // Letargo suave: volver a su hex (o reina) con pequeñísimo bamboleo
+        const home = a.homeHexId ? (w.hexes.find(h=>h.id===a.homeHexId) ?? Q) : Q;
+        approachClamp(a, home.cx + Math.sin((w as any)._tick*0.01)*3, home.cy + Math.cos((w as any)._tick*0.013)*3);
+        return;
       }
     }
-    return;
-  }
-
-  // No hay comida => orbitar su propio hex
-  const H = homeCenter(w, ant);
-  const t = (w as any)._tick ?? 0;
-  const r = 24;
-  const ang = (t*0.06 + ant.id*0.8) % (Math.PI*2);
-  approach(ant, H.x + r*Math.cos(ang), H.y + r*Math.sin(ang), 0.015);
-}
-
-export function builderBrain(w:World, ant:Ant){
-  const Q = w.hexes.find(h=>h.host==="queen"); if (!Q || !w.meta) return;
-
-  // Si no lleva huevo y hay huevos en la reina (broodEggsStaged)
-  if (!(ant as any).carryEgg && w.meta.broodEggsStaged>0){
-    // acercarse a la reina y pegar un huevo visual
-    approach(ant, Q.cx, Q.cy, 0.03);
-    if (d2(ant.x-Q.cx, ant.y-Q.cy)<42){
-      (ant as any).carryEgg = true;         // flag visual
-      w.meta.broodEggsStaged -= 1;          // sale 1 del pool de la reina
-    }
-    return;
-  }
-
-  // Si lleva huevo: ir al hex objetivo y colocarlo
-  if ((ant as any).carryEgg && w.meta.broodTargetHexId){
-    const T = w.hexes.find(h=>h.id===w.meta!.broodTargetHexId);
-    if (T){
-      approach(ant, T.cx, T.cy, 0.03);
-      if (d2(ant.x-T.cx, ant.y-T.cy)<64){
-        // "colocar" el huevo en la siguiente spot libre (born marca cuántos colocados)
-        const born = (T.eggs?.born ?? 0);
-        if (T.eggs?.spots && born < T.eggs.spots.length){
-          T.eggs.born = born + 1;   // ahora aparece 1 punto naranja en MotorDeRender
-        }
-        (ant as any).carryEgg = false;
-
-        // Cuando tenga 6 colocados => activar nido y empezar a alimentar
-        if (T.eggs && T.eggs.born>=6){
-          T.eggs.active = true;
-        }
+    const arrived = approachClamp(a, a._target.x, a._target.y);
+    if (arrived || Math.hypot(a._target.x - a.x, a._target.y - a.y) < PICKUP_RADIUS){
+      const take = Math.min(CARRY_PER_TRIP, a._target.amount ?? 0);
+      if (take > 0){
+        a._target.amount -= take;
+        a.carryingUnits = take;
+      }else{
+        a._target = null;
       }
     }
+  } else {
+    // Con carga -> volver a la reina y depositar en Banco
+    const arrived = approachClamp(a, Q.cx, Q.cy);
+    if (arrived || Math.hypot(Q.cx - a.x, Q.cy - a.y) < DROP_RADIUS){
+      const cu = a.carryingUnits ?? 0;
+      if (cu > 0){
+        w.stockFood  = (w.stockFood  ?? 0) + cu;
+        w.stockTotal = (w.stockTotal ?? 0) + cu;
+        a.carryingUnits = 0;
+      }
+      a._target = null;
+    }
+  }
+}
+
+// === CONSTRUCTORA: traslada huevos de la reina al hex objetivo ===
+export function builderBrain(w:World, ant:Ant, _cx:number, _cy:number){
+  const Q = w.hexes.find(h=>h.host==="queen");
+  const m = w.meta;
+  if (!Q || !m) return;
+
+  // no hay traslado pendiente
+  if (!m.broodTransferPending || !m.broodTargetHexId) return;
+
+  const T = w.hexes.find(h=>h.id===m.broodTargetHexId) as Hex|undefined;
+  if (!T) return;
+
+  // Inicializa estructura de eggs en el target por si acaso
+  (T as any).eggs = (T as any).eggs ?? { active:false, fed:0, tStart:(w as any)._tick??0, born:0, spots:[] };
+
+  // 1) si no lleva huevo y aún hay huevos en la reina, ir a la reina y "cargar" uno
+  if (!(ant as any).carryEgg){
+    if (m.broodEggsStaged <= 0){ m.broodTransferPending = false; return; }
+    approach(ant, Q.cx, Q.cy, 0.02);
+    if (Math.hypot(ant.x-Q.cx, ant.y-Q.cy) < Q.sidePx*0.55){
+      // toma un huevo
+      (ant as any).carryEgg = true;
+      m.broodEggsStaged -= 1;
+    }
     return;
   }
 
-  // Si no hay tarea: orbitar su propio hex (idle)
-  const H = homeCenter(w, ant);
-  const t = (w as any)._tick ?? 0;
-  const r = 28;
-  const ang = (t*0.05 + ant.id*0.7) % (Math.PI*2);
-  approach(ant, H.x + r*Math.cos(ang), H.y + r*Math.sin(ang), 0.013);
+  // 2) si lleva huevo, ir al hex objetivo
+  approach(ant, T.cx, T.cy, 0.02);
+  if (Math.hypot(ant.x-T.cx, ant.y-T.cy) < T.sidePx*0.55){
+    // soltar huevo y marcarlo visible en un spot
+    const E:any = (T as any).eggs;
+    if (!E.spots || E.spots.length===0){
+      // fallback: generar spots si no existen (no debería pasar, pero por si acaso)
+      const r = T.sidePx*0.42;
+      E.spots = [];
+      for (let i=0;i<6;i++){
+        const a = Math.PI/6 + i*(Math.PI/3);
+        E.spots.push({x:T.cx+Math.cos(a)*r, y:T.cy+Math.sin(a)*r});
+      }
+    }
+    E.born = (E.born??0) + 1;   // MotorDeRender dibuja tantos puntos naranjas como "born"
+    E.active = true;
+    (ant as any).carryEgg = false;
+
+    // ¿completamos los 6? fin del traslado
+    if (E.born>=6){
+      m.broodTransferPending = false;
+      m.broodTargetHexId = null;
+      // aquí NO eclosionan aún: eso lo maneja tu SistemaCria cuando alimentes
+    }
+  }
 }
+
+

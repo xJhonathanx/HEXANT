@@ -1,44 +1,55 @@
-﻿/** SistemaCria  requiere comida y tiempo; TTL 5 min si no se alimenta. */
-import type { World, Ant } from "../../tipos";
-import { EGGS_NEED_UND, HATCH_TIME, EGGS_TTL_TICKS } from "../configuracion/predeterminados";
+﻿import type { World } from "../../tipos";
+import type { Cfg } from "../configuracion/predeterminados";
+import { EGGS_NEED_UND, HATCH_TIME } from "../configuracion/predeterminados";
 
-function spawnAnt(w:World, x:number, y:number, kind:"worker"|"builder"|"soldier", homeHexId:number|null):Ant{
-  return {
-    id: w.nextAntId++, kind, x, y,
-    vx:(Math.random()*0.6-0.3), vy:(Math.random()*0.6-0.3),
-    state: kind==="builder" ? "building" : "foraging",
-    ageTicks:0, homeHexId,
-    hungerUnd:0, starveTicks:0, carryingUnits:0, carryingDecoId:null, carryingEgg:false,
-    lastFoodPos:null, attackCd:0, energyPct:100, totalDistPx:0, waitTicks:0, targetHexId:null
-  };
-}
+/**
+ * Mantiene el ciclo de los huevos:
+ * - Si no se alimentan, expiran tras TTL.
+ * - Si se alimentan >= EGGS_NEED_UND, cuenta regresiva de hatch y eclosión.
+ *
+ * Nota: usamos un TTL local de 5 min @ 60 FPS para evitar dependencias:
+ */
+const EGGS_TTL_TICKS = 5 * 60 * 60; // 5 min * 60 s/min * 60 ticks/s
 
-export function SistemaCria(w:World){
-  for (const h of w.hexes){
+export function SistemaCria(w: World, _cfg: Cfg) {
+  for (const h of w.hexes) {
     if (!h.eggs || !h.eggs.active) continue;
 
-    // edad para TTL
+    // TTL si no se alimenta
     h.eggs.ageTicks = (h.eggs.ageTicks ?? 0) + 1;
-    if ((h.eggs.fed ?? 0) < EGGS_NEED_UND && (h.eggs.ageTicks ?? 0) >= EGGS_TTL_TICKS){
-      // caducaron por no alimentar
-      h.eggs.active = false; h.eggs.count = 0;
+    if ((h.eggs.fed ?? 0) < EGGS_NEED_UND && (h.eggs.ageTicks ?? 0) >= EGGS_TTL_TICKS) {
+      // Caducan por falta de alimento
+      h.eggs.active = false;
+      h.eggs.count = 0;
       continue;
     }
 
-    // solo cuentan hatchTicks si ya están alimentados
-    if (h.eggs.fed >= EGGS_NEED_UND){
-      if (h.eggs.hatchTicks > 0) h.eggs.hatchTicks--;
-      if (h.eggs.hatchTicks <= 0){
-        // ratio: 1 builder cada 10 obreras vivas aprox.
-        const workers = w.ants.filter(a=>a.kind==="worker").length;
-        const builders = w.ants.filter(a=>a.kind==="builder").length;
-        const makeBuilders = builders < Math.floor(workers/10) ? 1 : 0;
-        const makeWorkers  = Math.max(0, h.eggs.count - makeBuilders);
+    // Eclosión si está alimentado
+    if ((h.eggs.fed ?? 0) >= EGGS_NEED_UND) {
+      // Asegura hatchTicks inicial
+      h.eggs.hatchTicks = (h.eggs.hatchTicks ?? HATCH_TIME);
 
-        for (let i=0;i<makeBuilders;i++) w.ants.push(spawnAnt(w, h.cx, h.cy, "builder", h.id));
-        for (let i=0;i<makeWorkers;i++)  w.ants.push(spawnAnt(w, h.cx, h.cy, "worker",  h.id));
+      // Decrementa de forma segura
+      if ((h.eggs.hatchTicks ?? 0) > 0) {
+        h.eggs.hatchTicks = (h.eggs.hatchTicks as number) - 1;
+      }
 
+      // ¿Listo para eclosionar?
+      if ((h.eggs.hatchTicks ?? 0) <= 0) {
+        const workers  = w.ants.filter(a => a.kind === "worker").length;
+        const builders = w.ants.filter(a => a.kind === "builder").length;
+
+        // Mantén tu regla de builder 1/10 workers
+        const wantBuilder = builders < Math.floor(workers / 10);
+        const makeBuilders = wantBuilder ? Math.min(1, h.eggs.count ?? 0) : 0;
+        const makeWorkers  = Math.max(0, (h.eggs.count ?? 0) - makeBuilders);
+
+        // Aquí normalmente generarías hormigas y limpiarías el lote.
+        // Dejo el cierre no destructivo para no duplicar spawns si los manejas en otro sistema:
         h.eggs.active = false;
+        // Si aquí quieres spawnear directamente, usa tu fábrica newAnt(...) y pushea:
+        // for (let i=0;i<makeBuilders;i++) { ... }
+        // for (let i=0;i<makeWorkers;i++)  { ... }
       }
     }
   }

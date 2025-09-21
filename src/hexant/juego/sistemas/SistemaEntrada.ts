@@ -6,7 +6,7 @@ import type { World } from "../../tipos";
 import { stampFoodPattern } from "../contenido/Patrones";
 
 export function placeFood(w:World, x:number, y:number, amount=10){
-  w.food.push({ x, y, amount, initial: amount });
+  const __tmp = {  x, y, amount, initial: amount  }; ( __tmp as any ).outside = true; w.food.push(__tmp);
 }
 export function placePattern(w:World, x:number, y:number){
   stampFoodPattern(w, x, y, { kind:"random", cellSize:24, amountPerCell:10 });
@@ -18,3 +18,5 @@ export function placeHazard(w:World, x:number, y:number){
     vy: (Math.random()*0.6-0.3)
   });
 }
+
+

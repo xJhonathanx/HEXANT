@@ -1,0 +1,103 @@
+﻿HEXANTV1
+- .gitignore
+- backups\
+  - HEXANTV1_hito-loteD_20250920_0255.zip
+- docs\
+  - HITO_LOTE_D.md
+- index.html
+- package.json
+- package-lock.json
+- src\
+  - Aplicacion.tsx
+  - hexant\
+    - assets\
+      - fuentes\
+      - README.md
+      - sonidos\
+      - texturas\
+    - herramientas\
+      - empaquetador.md
+    - juego\
+      - componentes\
+      - configuracion\
+        - perfiles\
+        - predeterminados.ts
+      - contenido\
+        - Patrones.ts
+      - especificaciones\
+        - acciones\
+        - hormigas\
+        - rasgos\
+        - visuales\
+      - index.ts
+      - inteligencia\
+        - cerebros\
+          - Cerebros.ts
+        - comportamientos\
+        - pizarras\
+      - mundo\
+      - README.md
+      - rejilla\
+      - sistemas\
+        - index.ts
+        - README.md
+        - SistemaAccionMover.ts
+        - SistemaCria.ts
+        - SistemaCriaLogistica.ts
+        - SistemaDecision.ts
+        - SistemaEconomia.ts
+        - SistemaEntrada.ts
+        - SistemaFeromonas.ts
+        - SistemaIA.ts
+        - SistemaInfluencia.ts
+        - SistemaMetabolismo.ts
+        - SistemaPeligros.ts
+        - SistemaPercepcion.ts
+        - SistemaPlanificacion.ts
+        - SistemaReina.ts
+        - SistemaScout.ts
+        - SistemaSemilla.ts
+    - modulos\
+      - ejemplo\
+        - README.md
+    - motor\
+      - README.md
+      - Reloj.ts
+    - pruebas\
+      - escenas\
+      - README.md
+      - unitarias\
+    - red\
+      - auth\
+      - cliente\
+        - Conexion.ts
+        - Mensajes.ts
+        - Prediccion.ts
+        - Replica.ts
+      - persistencia\
+      - README.md
+    - renderizado\
+      - capas.ts
+      - dibujo\
+        - Figuras.ts
+      - index.ts
+      - MotorDeRender.ts
+      - OverlayScout.ts
+      - README.md
+      - renderizadores\
+        - EfectosRender.ts
+        - HexRender.ts
+        - HormigaRender.ts
+      - shaders\
+    - tipos.ts
+    - ui\
+      - README.md
+    - utilidades\
+      - azar.ts
+      - busqueda.ts
+      - hex.ts
+      - matematica.ts
+      - README.md
+  - main.tsx
+- tsconfig.json
+- vite.config.ts
