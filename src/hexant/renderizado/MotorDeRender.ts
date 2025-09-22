@@ -172,8 +172,8 @@ export class MotorDeRender {
         const ex = cx + Math.cos(a) * ringR;
         const ey = cy + Math.sin(a) * ringR;
         this.queenG.circle(ex, ey, 3)
-          .fill(0xffc14a, 0.95)
-          .stroke({ color: 0xff9f2a, width: 1, alpha: 0.9 });
+            .fill(0x9be7ff, 0.95)                    // azul claro
+  .stroke({ color: 0x5bc8ff, width: 1, alpha: 0.9 });
       }
     }
   }
@@ -209,8 +209,8 @@ export class MotorDeRender {
           }
           this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
             .circle(ex, ey, 3)
-            .fill(0xffc14a, 0.95)
-            .stroke({ color: 0xff9f2a, width: 1, alpha: 0.9 });
+            .fill(0x9be7ff, 0.95)                    // azul claro
+ .stroke({ color: 0x5bc8ff, width: 1, alpha: 0.9 });
 
           // halo corto cuando la nurse alimenta (+5)
           if ((ei as any)._feedFx > 0) {
@@ -252,7 +252,7 @@ export class MotorDeRender {
           const py = a.y + (b.y - a.y) * partial;
           g.lineTo(px, py);
         }
-        g.stroke({ color: 0xff3abf, width: 4, alpha: 0.95 });
+        g.stroke({ color: 0x5bc8ff, width: 4, alpha: 0.95 });
       }
 
       // huevos "colocados" en el hex (spots + born)
@@ -264,7 +264,7 @@ export class MotorDeRender {
           const p = spots[i];
           this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
             .circle(p.x, p.y, 3)
-            .fill(0xffa652, 1);
+            .fill(0x5bc8ff, 1);
         }
       }
     }

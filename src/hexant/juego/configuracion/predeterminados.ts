@@ -20,7 +20,7 @@ export const EGGS_TTL_TICKS = 5 * TICKS_PER_MIN; // 5 minutos sin alimentar  des
 export const CARRY_PER_TRIP = 7;
 
 /* ============== Olfato / feromonas ============== */
-export const SMELL_RADIUS          = 100;
+export const SMELL_RADIUS          = 500;
 export const SMELL_RADIUS_MIN      = 60;
 export const SMELL_RADIUS_PER_UNIT = 1.0;
 

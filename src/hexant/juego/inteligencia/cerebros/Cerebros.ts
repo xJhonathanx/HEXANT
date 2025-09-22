@@ -160,26 +160,21 @@ export function nurseBrain(w:World, ant:Ant){
   const canNest = (h:any)=> h.host!=="queen" && h.completed && ((h.occupancy ?? 0) === 0);
   const broodAll = w.hexes.filter(canNest) as any[];
 
-  // Mantener hasta 4 nidos fijos: NO los descartamos por estar “llenos”.
+  // Mantener hasta 4 nidos fijos (no se descartan por estar “llenos”)
   const eggsInHex = (hid:number)=> eggs.filter(e => e.state==="incubating" && (e as any).hexId===hid).length;
   const broodSorted = [...broodAll].sort((a,b)=> (eggsInHex(a.id) - eggsInHex(b.id)) || (a.id - b.id));
-
   A.nests = (A.nests ?? []).filter((id:number)=> broodAll.some(h => (h as any).id === id));
-  for (const h of broodSorted){
-    if (A.nests.length >= 4) break;
-    if (!A.nests.includes(h.id)) A.nests.push(h.id);
-  }
+  for (const h of broodSorted){ if (A.nests.length>=4) break; if (!A.nests.includes(h.id)) A.nests.push(h.id); }
   const nests = (A.nests as number[]).map(id => broodAll.find(h=>h.id===id)).filter(Boolean) as any[];
 
-  // ¿hay espacio para trasladar MÁS huevos? (alguno de MIS nidos con < 6)
+  // ¿hay hueco para traer MÁS huevos? (alguno de MIS nidos con <6)
   const haveRoom = (A.nests as number[]).some((id:number)=> eggsInHex(id) < 6);
 
   const atQueen = eggs.find(e => e.state === "atQueen");
 
-  // ================= TRANSPORTE DE HUEVOS (se mantiene tal cual) =================
+  /* ========= TRANSPORTE DE HUEVOS ========= */
   if (A.carryEggId != null){
     const egg = eggs.find(e => e.id === A.carryEggId);
-    // busca el primer nido con hueco; si no hay, usa el primero (defensivo)
     const nest = nests.find(n => eggsInHex(n.id) < 6) ?? nests[0];
     if (!egg || !nest) { A.carryEggId = null; return; }
     _approach(A, nest.cx, nest.cy, K, VMAX);
@@ -198,7 +193,7 @@ export function nurseBrain(w:World, ant:Ant){
       egg.state = "incubating";
       egg.fed = 0;
       (egg as any).tStart = ((w as any)._tick ?? 0);
-      (egg as any).hatchAt = undefined; // se fija cuando llegue a 25
+      (egg as any).hatchAt = undefined;
       (egg as any).carrierId = null;
 
       A.carryEggId = null;
@@ -213,8 +208,8 @@ export function nurseBrain(w:World, ant:Ant){
     return;
   }
 
-  // ================= ALIMENTACIÓN CON VIAJES =================
-  // Mantener el mismo huevo objetivo hasta llegar a 25
+  /* ========= ALIMENTACIÓN ========= */
+  // mantén el mismo huevo objetivo hasta llegar a 25
   let targetEgg:any = A.feedEggId != null ? eggs.find(e => e.id === A.feedEggId) : null;
   if (!targetEgg || targetEgg.state!=="incubating" || (targetEgg.fed ?? 0) >= NURSE_FEED_FULL || !(A.nests ?? []).includes((targetEgg as any).hexId)){
     targetEgg = eggs.find(e =>
@@ -226,7 +221,7 @@ export function nurseBrain(w:World, ant:Ant){
   }
 
   if (targetEgg){
-    // a) si NO lleva comida -> ir a la reina a cargar 5 und
+    // a) sin carga -> ir a queen a buscar 5 und
     if ((A.carryingUnits ?? 0) <= 0){
       _approach(A, Q.cx, Q.cy, K, VMAX);
       if (_d2(A.x,A.y,Q.cx,Q.cy) < (Q.sidePx*Q.sidePx*0.12)){
@@ -236,8 +231,7 @@ export function nurseBrain(w:World, ant:Ant){
       }
       return;
     }
-
-    // b) lleva comida -> ir al nido del huevo objetivo
+    // b) con carga -> ir al nido del huevo objetivo
     const nest = w.hexes.find(h => (h as any).id === (targetEgg as any).hexId) as any;
     if (nest){
       _approach(A, nest.cx, nest.cy, K, VMAX);
@@ -248,7 +242,7 @@ export function nurseBrain(w:World, ant:Ant){
           (targetEgg as any)._feedFx = 10;   // halo verde para el render
           A.carryingUnits = (A.carryingUnits ?? 0) - give;
 
-          // si alcanzó 25, arrancar el temporizador de incubación (45s)
+          // si llegó a 25, iniciar incubación (45 s = HATCH_TIME)
           if ((targetEgg.fed ?? 0) >= NURSE_FEED_FULL && (targetEgg as any).hatchAt == null){
             (targetEgg as any).hatchAt = (((w as any)._tick ?? 0) + HATCH_TIME);
           }
@@ -258,7 +252,17 @@ export function nurseBrain(w:World, ant:Ant){
     return;
   }
 
-  // ================= LATENCIA =================
+  /* ========= FALLBACK: SIN HUEVOS QUE ALIMENTAR PERO VA CARGADA ========= */
+  if ((A.carryingUnits ?? 0) > 0){
+    _approach(A, Q.cx, Q.cy, K, VMAX);
+    if (_d2(A.x,A.y,Q.cx,Q.cy) < (Q.sidePx*Q.sidePx*0.12)){
+      (w as any).stockFood = ((w as any).stockFood ?? 0) + (A.carryingUnits ?? 0);
+      A.carryingUnits = 0; // queda libre para volver a recoger huevos cuando haya hueco
+    }
+    return;
+  }
+
+  /* ========= LATENCIA ========= */
   const idleTarget:any = (nests[0] ?? Q);
   _approach(A, idleTarget.cx, idleTarget.cy, K, VMAX);
   A.pulse += 0.02 * (A._pulseDir ?? -1);
