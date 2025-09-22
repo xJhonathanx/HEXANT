@@ -27,5 +27,6 @@ export function SistemaBuilder(w: World, _cfg: Cfg) {
   if (h.builtUnits >= target) {
     h.completed = true;
     m.buildTargetHexId = null;
+    (h as any).guito = (h as any).guito ?? { fed: 0, active: false, activateAt: null };
   }
 }

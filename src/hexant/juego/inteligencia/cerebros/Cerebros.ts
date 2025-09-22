@@ -149,7 +149,7 @@ export function nurseBrain(w:World, ant:Ant){
   const Q = _q(w); if (!Q) return;
 
   const K = 0.006;                 // ~50% del worker
-  const VMAX = 1.25;
+  const VMAX = 2.25;
 
   A.pulse = A.pulse ?? 0.9;
   A._pulseDir = A._pulseDir ?? -1;

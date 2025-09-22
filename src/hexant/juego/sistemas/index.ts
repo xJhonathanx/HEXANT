@@ -10,6 +10,7 @@ import { SistemaPlanificacion } from "./SistemaPlanificacion";
 import { SistemaBuilder } from "./SistemaBuilder";
 import { SistemaInfluencia } from "./SistemaInfluencia";
 import { SistemaEclosion } from "./SistemaEclosion"; // ← eclosión
+import { SistemaGuito } from "./SistemaGuito";
 
 export function ejecutarSistemas(w: World, cfg: Cfg) {
   (w as any)._tick = ((w as any)._tick ?? 0) + 1;
@@ -52,4 +53,11 @@ export function ejecutarSistemas(w: World, cfg: Cfg) {
 
   // 8) metabolismo
   if (typeof SistemaMetabolismo === "function") SistemaMetabolismo(w, cfg);
+
+
+  // 9) guito (produce comida)
+  SistemaGuito(w);
+if (typeof SistemaIA === "function") SistemaIA(w, cfg);
+  if (typeof SistemaMetabolismo === "function") SistemaMetabolismo(w, cfg);
+
 }

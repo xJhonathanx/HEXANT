@@ -5,7 +5,7 @@ import { drawAnt } from "./renderizadores/HormigaRender";
 
 export class MotorDeRender {
   // === caches / pools ===
-  private antMap = new Map<number, Graphics>(); // un gráfico por hormiga (persistente)
+  private antMap = new Map<number, Graphics>();
 
   private queenG: Graphics = new Graphics();
   private app: Application;
@@ -65,19 +65,20 @@ export class MotorDeRender {
 
   // === Borde neón por segmentos (con progreso opcional) ===
   private drawHexNeon(g: Graphics, pts: number[], width: number, progress?: number){
-    const C1 = 0xA100FF; // magenta
-    const C2 = 0x00F6FF; // cian
+    // paleta más “neón": púrpura eléctrico → cian
+    const C1 = 0x7F2BFF;
+    const C2 = 0x00E5FF;
 
-    const segsPerEdge = 10;        // segmentos por lado
-    const total = segsPerEdge * 6; // 6 lados
+    const segsPerEdge = 10;
+    const total = segsPerEdge * 6;
     const cutoff = Math.max(0, Math.min(total, Math.round((progress ?? 1) * total)));
 
     let k = 0;
     for (let e = 0; e < 6; e++){
       const i0 = e * 2;
       const i1 = ((e + 1) % 6) * 2;
-      const ax = pts[i0],     ay = pts[i0 + 1];
-      const bx = pts[i1],     by = pts[i1 + 1];
+      const ax = pts[i0], ay = pts[i0 + 1];
+      const bx = pts[i1], by = pts[i1 + 1];
 
       for (let s = 0; s < segsPerEdge; s++){
         if (k++ >= cutoff) return;
@@ -85,7 +86,7 @@ export class MotorDeRender {
         const x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0;
         const x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
 
-        const col = this._lerpColor(C1, C2, (e + t0) / 6); // degrada a lo largo del perímetro
+        const col = this._lerpColor(C1, C2, (e + t0) / 6);
         g.moveTo(x0, y0).lineTo(x1, y1)
          .stroke({ color: col, width, alpha: 0.95, alignment: 0.5 });
       }
@@ -99,6 +100,44 @@ export class MotorDeRender {
     const g = Math.round(g1+(g2-g1)*t);
     const b = Math.round(b1+(b2-b1)*t);
     return (r<<16)|(g<<8)|b;
+  }
+
+  // --- helpers (guito & conexiones) ---
+  private drawGlowLine(x1:number, y1:number, x2:number, y2:number){
+    // halo externo (oscuro)
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .moveTo(x1, y1).lineTo(x2, y2)
+      .stroke({ width: 5, color: 0x0b2b5f, alpha: 0.25 });
+    // glow medio azulado
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .moveTo(x1, y1).lineTo(x2, y2)
+      .stroke({ width: 2, color: 0x1aa7ff, alpha: 0.65 });
+    // núcleo blanco de 1px
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .moveTo(x1, y1).lineTo(x2, y2)
+      .stroke({ width: 1, color: 0xffffff, alpha: 0.95 });
+  }
+
+  private drawGuitoHalo(cx:number, cy:number, r:number, active:boolean, t:number){
+    // núcleo pequeño + halos tipo “LED”
+    const R  = r * 0.30;
+    const osc = active ? (0.90 + 0.10*Math.sin(t*0.12 + (cx+cy)*0.01)) : 0.75;
+
+    // halo externo (suave)
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .circle(cx, cy, R*1.8).fill(0x0b2b5f, 0.20*osc);
+    // halo medio
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .circle(cx, cy, R*1.25).fill(0x1587ff, 0.32*osc);
+    // halo interior
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .circle(cx, cy, R*0.9).fill(0x5fd7ff, 0.45*osc);
+    // núcleo brillante
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .circle(cx, cy, Math.max(2, R*0.38)).fill(0xffffff, 0.98);
+    // anillo blanco muy fino (look circuito)
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .circle(cx, cy, R*0.62).stroke({ color: 0xffffff, width: 1, alpha: 0.9 });
   }
 
   // ===== main render =====
@@ -129,7 +168,7 @@ export class MotorDeRender {
       `W:${workers}  B:${builders}  S:${soldiers} | Food:${foods} Haz:${hazards} | Banco:${bank} | Huevos:${eggsAtQueen}`;
   }
 
-  // ===== dome =====
+  // ===== dome (AIR) =====
   private syncDome(w: World) {
     const q = w.hexes.find(h => (h as any).host === "queen");
     if (!q) return;
@@ -142,7 +181,7 @@ export class MotorDeRender {
     this.domeG
       .clear()
       .circle((q as any).cx, (q as any).cy, r)
-      .stroke({ color: 0x0aa3a3, width: 2, alpha: 0.55, alignment: 0.5 });
+      .stroke({ color: 0x0aa3a3, width: 1, alpha: 0.55, alignment: 0.5 }); // 1px como pediste
   }
 
   // ===== queen + eggs glow/orbit =====
@@ -161,7 +200,7 @@ export class MotorDeRender {
     this.queenG.circle(cx, cy, R).fill(0xfff1a8, 1.0);
     this.queenG.circle(cx, cy, R + 3).stroke({ color: 0xffe26a, width: 2, alpha: 0.7 });
 
-    // huevos orbitando
+    // huevos orbitando (azul claro)
     const eggs = (w.eggs ?? []).filter((e: any) => e.state === "atQueen");
     const t = (w as any)._tick ?? 0;
     const n = eggs.length;
@@ -172,14 +211,16 @@ export class MotorDeRender {
         const ex = cx + Math.cos(a) * ringR;
         const ey = cy + Math.sin(a) * ringR;
         this.queenG.circle(ex, ey, 3)
-            .fill(0x9be7ff, 0.95)                    // azul claro
-  .stroke({ color: 0x5bc8ff, width: 1, alpha: 0.9 });
+          .fill(0x9be7ff, 0.95)
+          .stroke({ color: 0x5bc8ff, width: 1, alpha: 0.9 });
       }
     }
   }
 
   // ===== hexes (and egg spots inside hexes) =====
   private syncHexes(w: World) {
+    const t = (w as any)._tick ?? 0;
+
     for (const h of w.hexes) {
       const g = this.getFromPool(this.hexPool, this.layerHex, this.hexUsed++);
       const r = (h as any).sidePx;
@@ -192,12 +233,19 @@ export class MotorDeRender {
         const a = Math.PI / 3 * i + Math.PI / 6;
         pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
       }
-      this.drawHexNeon(g, pts, 3);
+      // 2px los hexágonos
+      this.drawHexNeon(g, pts, 2);
+
+      // --- GUITO (si existe) ---
+      const G:any = (h as any).guito;
+      if (G) {
+        this.drawGuitoHalo(cx, cy, r, !!G.active, t);
+      }
 
       // huevos incubando (entidades)
       const incubating = (w.eggs ?? []).filter(e => e.state === 'incubating' && (e as any).hexId === (h as any).id);
       if (incubating.length > 0) {
-        const rr = r * 0.72; // radio interior
+        const rr = r * 0.72;
         for (let i = 0; i < incubating.length; i++) {
           const ei: any = incubating[i];
           let ex = ei.x, ey = ei.y;
@@ -209,10 +257,9 @@ export class MotorDeRender {
           }
           this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
             .circle(ex, ey, 3)
-            .fill(0x9be7ff, 0.95)                    // azul claro
- .stroke({ color: 0x5bc8ff, width: 1, alpha: 0.9 });
+            .fill(0x9be7ff, 0.95)
+            .stroke({ color: 0x5bc8ff, width: 1, alpha: 0.9 });
 
-          // halo corto cuando la nurse alimenta (+5)
           if ((ei as any)._feedFx > 0) {
             this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
               .circle(ex, ey, 5)
@@ -222,15 +269,14 @@ export class MotorDeRender {
         }
       }
 
-      // progreso de construcción: ilumina el contorno según built/target
+      // progreso de construcción (mantengo, pero con trazo 2px)
       const built = (h as any).builtUnits ?? 0;
       const target = (h as any).targetUnits ?? 0;
       const done = !!(h as any).completed;
       const prog   = target > 0 ? Math.min(1, built/target) : (done ? 1 : 1);
       if (!done && target > 0 && built > 0) {
-        this.drawHexNeon(g, pts, 3, prog);
+        this.drawHexNeon(g, pts, 2, prog);
 
-        // línea de progreso en aristas
         const verts: Array<{x:number,y:number}> = [];
         for (let i=0;i<6;i++){
           const a = Math.PI/3*i + Math.PI/6;
@@ -252,10 +298,10 @@ export class MotorDeRender {
           const py = a.y + (b.y - a.y) * partial;
           g.lineTo(px, py);
         }
-        g.stroke({ color: 0x5bc8ff, width: 4, alpha: 0.95 });
+        g.stroke({ color: 0xffffff, width: 2, alpha: 0.95 });
       }
 
-      // huevos "colocados" en el hex (spots + born)
+      // huevos "colocados" (spots)
       const born = (h as any).eggs?.born ?? 0;
       const spots = (h as any).eggs?.spots as Array<{ x: number, y: number }> | undefined;
       if (spots && born > 0) {
@@ -267,6 +313,41 @@ export class MotorDeRender {
             .fill(0x5bc8ff, 1);
         }
       }
+    }
+
+    // --- Conexiones entre guitos activos ---
+    const dirs: Array<[number,number]> = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+    const active = w.hexes.filter(h => !!(h as any).guito?.active);
+
+    for (const h of active){
+      const aq = (h as any).aq ?? 0, ar = (h as any).ar ?? 0;
+      for (const d of dirs){
+        const nq = aq + d[0], nr = ar + d[1];
+        const nb = w.hexes.find(x => (x as any).aq===nq && (x as any).ar===nr);
+        if (!nb || !(nb as any).guito?.active) continue;
+        if (nb.id < h.id) continue; // evita dibujar dos veces
+
+        this.drawGlowLine((h as any).cx, (h as any).cy, (nb as any).cx, (nb as any).cy);
+      }
+    }
+
+    // --- Pulsos (si tu meta los genera) ---
+    const pulses = (w.meta as any)?.guitoPulses ?? [];
+    for (const p of pulses){
+      const A = w.hexes.find(h => h.id === (p as any).a);
+      const B = w.hexes.find(h => h.id === (p as any).b);
+      if (!A || !B) continue;
+      const tt = (p as any).t ?? 0;
+      const x = A.cx + (B.cx - A.cx) * tt;
+      const y = A.cy + (B.cy - A.cy) * tt;
+
+      // pequeño destello con halo
+      this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+        .circle(x, y, 4).fill(0x0b2b5f, 0.18);
+      this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+        .circle(x, y, 2.5).fill(0x1aa7ff, 0.75);
+      this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+        .circle(x, y, 1.6).fill(0xffffff, 0.98);
     }
   }
 
@@ -309,53 +390,29 @@ export class MotorDeRender {
       g.y = (a as any).y ?? 0;
       drawAnt(g, a as any);
 
-if ((a as any).kind === "nurse") {
-  const pulse = (a as any).pulse ?? 0.9;
-  // halo blanco por encima
-  this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
-    .circle(g.x, g.y, 4)
-    .stroke({ color: 0xffffff, width: 2, alpha: 0.6 * pulse + 0.3 });
+      if ((a as any).kind === "nurse") {
+        const pulse = (a as any).pulse ?? 0.9;
+        this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+          .circle(g.x, g.y, 4)
+          .stroke({ color: 0xffffff, width: 2, alpha: 0.6 * pulse + 0.3 });
 
-  // pellet verde si lleva comida (carryingUnits > 0)
-  if (((a as any).carryingUnits ?? 0) > 0) {
-    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
-      .circle(g.x, g.y, 2.5)
-      .fill(0x9cffc7, 0.95)
-      .stroke({ color: 0x00ff99, width: 1, alpha: 0.9 });
-  }
-}
+        if (((a as any).carryingUnits ?? 0) > 0) {
+          this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+            .circle(g.x, g.y, 2.5)
+            .fill(0x9cffc7, 0.95)
+            .stroke({ color: 0x00ff99, width: 1, alpha: 0.9 });
+        }
+      }
       g.visible = true;
 
-
-
-      // Nurse: overlay por encima para que siempre se vea
-if ((a as any).kind === "nurse") {
-  const pulse = (a as any).pulse ?? 0.9;
-  // halo blanco suave encima de todo
-  this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
-    .circle(g.x, g.y, 4)
-    .stroke({ color: 0xffffff, width: 2, alpha: 0.6 * pulse + 0.3 });
-
-  // === EFECTO DE CARGA: si va con comida, un pellet verde brillante en su posición ===
-  if (((a as any).carryingUnits ?? 0) > 0) {
-    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
-      .circle(g.x, g.y, 2.5)
-      .fill(0x9cffc7, 0.95)
-      .stroke({ color: 0x00ff99, width: 1, alpha: 0.9 });
-  }
-}
-
-      // --- Nurse: overlay en capa FX para que no la tape la capa de huevos ---
-if ((a as any).kind === "nurse") {
-  const pulse = (a as any).pulse ?? 0.9;
-  this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
-    .circle(g.x, g.y, 4) // aro por encima
-    .stroke({ color: 0xffffff, width: 2, alpha: 0.6 * pulse + 0.3 });
-}
-
+      if ((a as any).kind === "nurse") {
+        const pulse = (a as any).pulse ?? 0.9;
+        this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+          .circle(g.x, g.y, 4)
+          .stroke({ color: 0xffffff, width: 2, alpha: 0.6 * pulse + 0.3 });
+      }
     }
 
-    // limpiar hormigas que ya no existen
     for (const [id, g] of this.antMap) {
       if (!aliveIds.has(id)) {
         g.destroy();
