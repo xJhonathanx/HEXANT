@@ -10,7 +10,7 @@ export function SistemaInfluencia(w:World, _dt:number){
 
   const N = w.hexes.filter(h => h.host !== "queen").length;
   const R0 = M.AIR_R0 as number;
-  const R  = R0 + N * (0.25 * 2 * R0); // = R0 * (1 + 0.5*N)
+  const R = R0 + N * (0.1 * 2 * R0); // R0 * (1 + 0.2*N)
 
   // expone para el render del domo
   (w as any).domeRadius = R;
@@ -28,3 +28,5 @@ export function SistemaInfluencia(w:World, _dt:number){
     }
   }
 }
+
+

@@ -8,37 +8,48 @@ import { SistemaMetabolismo } from "./SistemaMetabolismo";
 
 import { SistemaPlanificacion } from "./SistemaPlanificacion";
 import { SistemaBuilder } from "./SistemaBuilder";
-import { SistemaNurse } from "./SistemaNurse";
-import { SistemaEclosion } from "./SistemaEclosion";
-import { SistemaHuevosCarry } from "./SistemaHuevosCarry";
+import { SistemaInfluencia } from "./SistemaInfluencia";
+import { SistemaEclosion } from "./SistemaEclosion"; // ← eclosión
 
 export function ejecutarSistemas(w: World, cfg: Cfg) {
   (w as any)._tick = ((w as any)._tick ?? 0) + 1;
 
-  // 1) Semilla (3 obreras + 1 constructora + 1 nurse si falta)
+  // 1) seed
   SistemaSemilla(w, cfg);
 
-  // 2) Reina (pone huevos y cobra del banco)
+  // 1.1) salvage: si por cualquier motivo no hay nurse, crea una junto a la reina
+  {
+    const hasNurse = w.ants.some((a:any) => a.kind === "nurse");
+    const q = w.hexes.find(h => (h as any).host === "queen") as any;
+    if (!hasNurse && q) {
+      w.ants.push({
+        id: w.nextAntId++,
+        kind: "nurse" as any,
+        x: q.cx, y: q.cy, vx: 0, vy: 0,
+        carryingUnits: 0, state: "foraging", homeHexId: q.id,
+      } as any);
+    }
+  }
+
+
+  // 2) reina (postura y banco)
   SistemaReina(w, cfg);
 
-  // 3) Planificar nuevo hex si hay 6 huevos en la reina y una constructora
+  // 3) planificación de hex (con tu gate de huevos eclosionados)
   SistemaPlanificacion(w, cfg);
 
-  // 3.5) Huevos en traslado pegados a su carrier (nurse)
-  SistemaHuevosCarry(w);
+  // 4) AIR (radio dinámico y correa)
+  SistemaInfluencia(w, 0);
 
-  // 4) Nurse (no-op si delegada al cerebro)
-  SistemaNurse(w, cfg);
-
-  // 5) Construcción: la constructora avanza el hex objetivo consumiendo banco
-  SistemaBuilder(w, cfg);
-
-  // 6) IA (workers/builder/nurse brains)
+  // 5) IA (workers, builder, nurse) — la nurse se maneja en nurseBrain
   if (typeof SistemaIA === "function") SistemaIA(w, cfg);
 
-  // 7) Eclosión: 45s tras llegar + fed>=25
+  // 6) builder consume banco y avanza la obra
+  SistemaBuilder(w, cfg);
+
+  // 7) eclosión: (fed>=25) && (tick>=hatchAt)
   SistemaEclosion(w, cfg);
 
-  // 8) Metabolismo, etc.
+  // 8) metabolismo
   if (typeof SistemaMetabolismo === "function") SistemaMetabolismo(w, cfg);
 }

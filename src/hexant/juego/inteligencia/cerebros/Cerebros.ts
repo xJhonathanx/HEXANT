@@ -121,16 +121,18 @@ export function builderBrain(w:World, ant:Ant, _cx?:number, _cy?:number){
   }
 
   // órbita estable alrededor de la reina
-  A._ang = (A._ang ?? (A.id*0.6)) + 0.03;
-  const R = 26;
-  const tx = Q.cx + Math.cos(A._ang)*R;
-  const ty = Q.cy + Math.sin(A._ang)*R;
-  approach(A, tx, ty, 0.02);
+  const t = ((w as any)._tick ?? 0);
+  const phase = (A.id % 6) * (Math.PI/3);
+  const R = ((Q as any).sidePx ?? 36) + 18;
+  const tx = Q.cx + Math.cos(t*0.05 + phase) * R;
+  const ty = Q.cy + Math.sin(t*0.05 + phase) * R;
+  approach(A, tx, ty, 0.06);
+  A.vx *= 0.9; A.vy *= 0.9;
 }
 
 /* ================== NURSE ================== */
-const NURSE_FEED_STEP = 5;
-const NURSE_FEED_FULL = 25;
+const NURSE_FEED_STEP = 5;        // por viaje
+const NURSE_FEED_FULL = 25;       // 5 viajes
 
 function _q(w:World){ return w.hexes.find(h => (h as any).host === "queen") ?? null; }
 function _d2(ax:number, ay:number, bx:number, by:number){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; }
@@ -143,109 +145,121 @@ function _approach(a:any, tx:number, ty:number, k:number, vmax:number){
 }
 
 export function nurseBrain(w:World, ant:Ant){
-  const A:any = ant as any;
+  const A:any = ant;
   const Q = _q(w); if (!Q) return;
 
-  const K = SEEK_K * 0.5;
-  const VMAX = MAX_SPEED * 0.5;
+  const K = 0.006;                 // ~50% del worker
+  const VMAX = 1.25;
 
   A.pulse = A.pulse ?? 0.9;
   A._pulseDir = A._pulseDir ?? -1;
 
-  // candidatos: SOLO hex completados, desocupados (occupancy===0)
-  const candidates = w.hexes.filter(h => h.host!=="queen" && (h as any).completed && ((h as any).occupancy ?? 0) === 0) as any[];
   const eggs:any[] = (w as any).eggs ?? [];
 
-  function eggsInHex(hid:number){ return eggs.filter(e => e.state==="incubating" && (e as any).hexId===hid).length; }
+  // --- nidos válidos (host!=queen, construidos, sin obreras) ---
+  const canNest = (h:any)=> h.host!=="queen" && h.completed && ((h.occupancy ?? 0) === 0);
+  const broodAll = w.hexes.filter(canNest) as any[];
 
-  const available = [...candidates].filter(h => eggsInHex((h as any).id) < 6)
-                                   .sort((a,b)=> eggsInHex(a.id) - eggsInHex(b.id));
+  // Mantener hasta 4 nidos fijos: NO los descartamos por estar “llenos”.
+  const eggsInHex = (hid:number)=> eggs.filter(e => e.state==="incubating" && (e as any).hexId===hid).length;
+  const broodSorted = [...broodAll].sort((a,b)=> (eggsInHex(a.id) - eggsInHex(b.id)) || (a.id - b.id));
 
-  // mantener hasta 4 nidos cacheados, pero SOLO si siguen disponibles
-  A.nests = (A.nests ?? []).filter((id:number)=> available.some(h => (h as any).id === id));
-  for (const h of available){
+  A.nests = (A.nests ?? []).filter((id:number)=> broodAll.some(h => (h as any).id === id));
+  for (const h of broodSorted){
     if (A.nests.length >= 4) break;
     if (!A.nests.includes(h.id)) A.nests.push(h.id);
   }
-  const nests = (A.nests as number[]).map(id => available.find(h=>h.id===id)).filter(Boolean) as any[];
-  const haveRoom = nests.length > 0;
+  const nests = (A.nests as number[]).map(id => broodAll.find(h=>h.id===id)).filter(Boolean) as any[];
+
+  // ¿hay espacio para trasladar MÁS huevos? (alguno de MIS nidos con < 6)
+  const haveRoom = (A.nests as number[]).some((id:number)=> eggsInHex(id) < 6);
 
   const atQueen = eggs.find(e => e.state === "atQueen");
 
-  // 1) Si va cargando huevo pero ya NO hay nidos disponibles -> devolver a la reina
-  if (A.carryEggId != null && !haveRoom){
-    const egg = eggs.find(e => e.id === A.carryEggId);
-    if (egg){
-      egg.state = "atQueen";
-      (egg as any).carrierId = null;
-      if (Q){ (egg as any).x = Q.cx; (egg as any).y = Q.cy; }
-    }
-    A.carryEggId = null;
-    // latencia cerca de la reina
-    _approach(A, Q.cx, Q.cy, K, VMAX);
-    return;
-  }
-
-  // 2) Llevar huevo si lo está cargando -> al primer nido disponible
+  // ================= TRANSPORTE DE HUEVOS (se mantiene tal cual) =================
   if (A.carryEggId != null){
     const egg = eggs.find(e => e.id === A.carryEggId);
-    const nest = nests[0];
-    if (!egg || !nest){ return; }
-
+    // busca el primer nido con hueco; si no hay, usa el primero (defensivo)
+    const nest = nests.find(n => eggsInHex(n.id) < 6) ?? nests[0];
+    if (!egg || !nest) { A.carryEggId = null; return; }
     _approach(A, nest.cx, nest.cy, K, VMAX);
-    const near = _d2(A.x, A.y, nest.cx, nest.cy) < (nest.sidePx * nest.sidePx * 0.12);
-    if (near){
+    if (_d2(A.x,A.y,nest.cx,nest.cy) < (nest.sidePx*nest.sidePx*0.12)){
       const born = (nest.eggs?.born ?? 0);
-      const spot = innerVertex(nest, born);
+      const r = nest.sidePx * 0.72;
+      const ang = Math.PI/6 + (born % 6) * (Math.PI/3);
+      const px = nest.cx + Math.cos(ang)*r, py = nest.cy + Math.sin(ang)*r;
+
       nest.eggs = nest.eggs ?? { spots:[], born:0, active:true, fed:0 };
-      nest.eggs.spots.push({ x: spot.x, y: spot.y });
+      nest.eggs.spots.push({ x:px, y:py });
       nest.eggs.born = born + 1;
 
-      (egg as any).x = spot.x; (egg as any).y = spot.y;
+      (egg as any).x = px; (egg as any).y = py;
       (egg as any).hexId = nest.id;
       egg.state = "incubating";
       egg.fed = 0;
-      egg.tStart = (w as any)._tick ?? 0;
-      egg.hatchTicks = HATCH_TIME;
+      (egg as any).tStart = ((w as any)._tick ?? 0);
+      (egg as any).hatchAt = undefined; // se fija cuando llegue a 25
       (egg as any).carrierId = null;
 
       A.carryEggId = null;
     }
     return;
   }
-
-  // 3) Recoger de la reina SOLO si hay nidos disponibles
-  if (atQueen && haveRoom){
+  if (atQueen && haveRoom && (A.carryingUnits ?? 0) <= 0){
     _approach(A, Q.cx, Q.cy, K, VMAX);
-    const nearQ = _d2(A.x, A.y, Q.cx, Q.cy) < (Q.sidePx * Q.sidePx * 0.12);
-    if (nearQ){
-      A.carryEggId = atQueen.id;
-      atQueen.state = "carried";
-      (atQueen as any).carrierId = A.id;
+    if (_d2(A.x,A.y,Q.cx,Q.cy) < (Q.sidePx*Q.sidePx*0.12)){
+      A.carryEggId = atQueen.id; atQueen.state = "carried"; (atQueen as any).carrierId = A.id;
     }
     return;
   }
 
-  // 4) Alimentar huevos en mis nidos (<25)
-  const hungry = eggs.find(e => e.state==="incubating" && (A.nests ?? []).includes((e as any).hexId) && ((e.fed ?? 0) < 25));
-  if (hungry){
-    const nest = w.hexes.find(h => (h as any).id === (hungry as any).hexId) as any;
+  // ================= ALIMENTACIÓN CON VIAJES =================
+  // Mantener el mismo huevo objetivo hasta llegar a 25
+  let targetEgg:any = A.feedEggId != null ? eggs.find(e => e.id === A.feedEggId) : null;
+  if (!targetEgg || targetEgg.state!=="incubating" || (targetEgg.fed ?? 0) >= NURSE_FEED_FULL || !(A.nests ?? []).includes((targetEgg as any).hexId)){
+    targetEgg = eggs.find(e =>
+      e.state === "incubating" &&
+      (A.nests ?? []).includes((e as any).hexId) &&
+      ((e.fed ?? 0) < NURSE_FEED_FULL)
+    ) ?? null;
+    A.feedEggId = targetEgg?.id ?? null;
+  }
+
+  if (targetEgg){
+    // a) si NO lleva comida -> ir a la reina a cargar 5 und
+    if ((A.carryingUnits ?? 0) <= 0){
+      _approach(A, Q.cx, Q.cy, K, VMAX);
+      if (_d2(A.x,A.y,Q.cx,Q.cy) < (Q.sidePx*Q.sidePx*0.12)){
+        const bank = (w as any).stockFood ?? 0;
+        const take = Math.min(NURSE_FEED_STEP, bank);
+        if (take > 0){ (w as any).stockFood = bank - take; A.carryingUnits = take; }
+      }
+      return;
+    }
+
+    // b) lleva comida -> ir al nido del huevo objetivo
+    const nest = w.hexes.find(h => (h as any).id === (targetEgg as any).hexId) as any;
     if (nest){
       _approach(A, nest.cx, nest.cy, K, VMAX);
-      const near = _d2(A.x, A.y, nest.cx, nest.cy) < (nest.sidePx * nest.sidePx * 0.12);
-      if (near){
-        const bank = (w as any).stockFood ?? 0;
-        if (bank >= 5){
-          (w as any).stockFood = bank - 5;
-          hungry.fed = Math.min(25, (hungry.fed ?? 0) + 5);
+      if (_d2(A.x,A.y,nest.cx,nest.cy) < (nest.sidePx*nest.sidePx*0.12)){
+        const give = Math.min(A.carryingUnits ?? 0, NURSE_FEED_STEP, NURSE_FEED_FULL - (targetEgg.fed ?? 0));
+        if (give > 0){
+          targetEgg.fed = (targetEgg.fed ?? 0) + give;
+          (targetEgg as any)._feedFx = 10;   // halo verde para el render
+          A.carryingUnits = (A.carryingUnits ?? 0) - give;
+
+          // si alcanzó 25, arrancar el temporizador de incubación (45s)
+          if ((targetEgg.fed ?? 0) >= NURSE_FEED_FULL && (targetEgg as any).hatchAt == null){
+            (targetEgg as any).hatchAt = (((w as any)._tick ?? 0) + HATCH_TIME);
+          }
         }
       }
     }
     return;
   }
 
-  // 5) Latencia en primer nido (o reina) + pulso
-  const idleTarget:any = nests[0] ?? Q;
+  // ================= LATENCIA =================
+  const idleTarget:any = (nests[0] ?? Q);
   _approach(A, idleTarget.cx, idleTarget.cy, K, VMAX);
   A.pulse += 0.02 * (A._pulseDir ?? -1);
   if (A.pulse < 0.3) { A.pulse = 0.3; A._pulseDir = 1; }

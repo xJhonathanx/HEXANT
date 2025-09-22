@@ -15,6 +15,18 @@ export function SistemaPlanificacion(w: World, _cfg: Cfg) {
   // si ya hay un objetivo, no replantear
   if (m.buildTargetHexId) return;
 
+// ======= NUEVO GATE: no planear otro hex si aún hay huevos incubando en los existentes =======
+  const broodHexes = w.hexes.filter(h => (h as any).host !== "queen");
+  if (broodHexes.length >= 1) {
+    const ids = new Set(broodHexes.map(h => h.id));
+    const incubating = (w.eggs ?? []).some(e => e.state === "incubating" && ids.has((e as any).hexId));
+    if (incubating) return; // todavía no eclosionan -> NO se crea el 2º (ni siguientes)
+  }
+  // ==============================================================================================
+
+
+
+
   // huevos "en la reina" (con la cadena correcta)
   const eggsAtQueen = (w.eggs ?? []).filter(e => e.state === "atQueen").length;
   if (eggsAtQueen < 6) return;

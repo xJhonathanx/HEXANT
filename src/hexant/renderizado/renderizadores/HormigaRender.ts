@@ -40,3 +40,5 @@ export function drawAnt(g: Graphics, a: Ant ) {
     g.circle(r*0.9, -r*0.9, 2.4).fill(0xffc14a, 0.98).stroke({ width: 1, color: 0xff9f2a, alpha: 0.95 });
   }
 }
+
+

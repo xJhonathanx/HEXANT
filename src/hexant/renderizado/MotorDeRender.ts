@@ -1,4 +1,4 @@
-﻿// E:\GAME\HEXANTV1\src\hexant\renderizado\MotorDeRender.ts
+﻿// src/hexant/renderizado/MotorDeRender.ts
 import { Application, Container, Graphics, Text } from "pixi.js";
 import type { World, Ant } from "../tipos";
 import { drawAnt } from "./renderizadores/HormigaRender";
@@ -63,44 +63,43 @@ export class MotorDeRender {
     }
   }
 
-
   // === Borde neón por segmentos (con progreso opcional) ===
-private drawHexNeon(g: Graphics, pts: number[], width: number, progress?: number){
-  const C1 = 0xA100FF; // magenta
-  const C2 = 0x00F6FF; // cian
+  private drawHexNeon(g: Graphics, pts: number[], width: number, progress?: number){
+    const C1 = 0xA100FF; // magenta
+    const C2 = 0x00F6FF; // cian
 
-  const segsPerEdge = 10;        // segmentos por lado
-  const total = segsPerEdge * 6; // 6 lados
-  const cutoff = Math.max(0, Math.min(total, Math.round((progress ?? 1) * total)));
+    const segsPerEdge = 10;        // segmentos por lado
+    const total = segsPerEdge * 6; // 6 lados
+    const cutoff = Math.max(0, Math.min(total, Math.round((progress ?? 1) * total)));
 
-  let k = 0;
-  for (let e = 0; e < 6; e++){
-    const i0 = e * 2;
-    const i1 = ((e + 1) % 6) * 2;
-    const ax = pts[i0],     ay = pts[i0 + 1];
-    const bx = pts[i1],     by = pts[i1 + 1];
+    let k = 0;
+    for (let e = 0; e < 6; e++){
+      const i0 = e * 2;
+      const i1 = ((e + 1) % 6) * 2;
+      const ax = pts[i0],     ay = pts[i0 + 1];
+      const bx = pts[i1],     by = pts[i1 + 1];
 
-    for (let s = 0; s < segsPerEdge; s++){
-      if (k++ >= cutoff) return;
-      const t0 = s / segsPerEdge, t1 = (s + 1) / segsPerEdge;
-      const x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0;
-      const x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
+      for (let s = 0; s < segsPerEdge; s++){
+        if (k++ >= cutoff) return;
+        const t0 = s / segsPerEdge, t1 = (s + 1) / segsPerEdge;
+        const x0 = ax + (bx - ax) * t0, y0 = ay + (by - ay) * t0;
+        const x1 = ax + (bx - ax) * t1, y1 = ay + (by - ay) * t1;
 
-      const col = this._lerpColor(C1, C2, (e + t0) / 6); // degrada a lo largo del perímetro
-      g.moveTo(x0, y0).lineTo(x1, y1)
-       .stroke({ color: col, width, alpha: 0.95, alignment: 0.5 });
+        const col = this._lerpColor(C1, C2, (e + t0) / 6); // degrada a lo largo del perímetro
+        g.moveTo(x0, y0).lineTo(x1, y1)
+         .stroke({ color: col, width, alpha: 0.95, alignment: 0.5 });
+      }
     }
   }
-}
 
-private _lerpColor(c1:number, c2:number, t:number){
-  const r1=(c1>>16)&255, g1=(c1>>8)&255, b1=c1&255;
-  const r2=(c2>>16)&255, g2=(c2>>8)&255, b2=c2&255;
-  const r = Math.round(r1+(r2-r1)*t);
-  const g = Math.round(g1+(g2-g1)*t);
-  const b = Math.round(b1+(b2-b1)*t);
-  return (r<<16)|(g<<8)|b;
-}
+  private _lerpColor(c1:number, c2:number, t:number){
+    const r1=(c1>>16)&255, g1=(c1>>8)&255, b1=c1&255;
+    const r2=(c2>>16)&255, g2=(c2>>8)&255, b2=c2&255;
+    const r = Math.round(r1+(r2-r1)*t);
+    const g = Math.round(g1+(g2-g1)*t);
+    const b = Math.round(b1+(b2-b1)*t);
+    return (r<<16)|(g<<8)|b;
+  }
 
   // ===== main render =====
   renderWorld(w: World) {
@@ -112,8 +111,6 @@ private _lerpColor(c1:number, c2:number, t:number){
     this.syncHazards(w);
     this.syncAnts(w);
     this.drawQueen(w);
-
-
 
     this.hideRest(this.hexPool, this.hexUsed);
     this.hideRest(this.foodPool, this.foodUsed);
@@ -189,23 +186,23 @@ private _lerpColor(c1:number, c2:number, t:number){
       const cx = (h as any).cx;
       const cy = (h as any).cy;
 
-      
+      // vértices para neón
+      const pts: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 3 * i + Math.PI / 6;
+        pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
+      }
+      this.drawHexNeon(g, pts, 3);
 
-     const pts: number[] = [];
-for (let i = 0; i < 6; i++) {
-  const a = Math.PI / 3 * i + Math.PI / 6;
-  pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
-}
-this.drawHexNeon(g, pts, 3);
       // huevos incubando (entidades)
       const incubating = (w.eggs ?? []).filter(e => e.state === 'incubating' && (e as any).hexId === (h as any).id);
       if (incubating.length > 0) {
         const rr = r * 0.72; // radio interior
         for (let i = 0; i < incubating.length; i++) {
-          const e:any = incubating[i];
-          let ex = e.x, ey = e.y;
+          const ei: any = incubating[i];
+          let ex = ei.x, ey = ei.y;
           if (ex == null || ey == null) {
-            const idx = (e.slot ?? i) % 6;
+            const idx = (ei.slot ?? i) % 6;
             const aa = Math.PI / 3 * idx + Math.PI / 6;
             ex = cx + rr * Math.cos(aa);
             ey = cy + rr * Math.sin(aa);
@@ -214,41 +211,50 @@ this.drawHexNeon(g, pts, 3);
             .circle(ex, ey, 3)
             .fill(0xffc14a, 0.95)
             .stroke({ color: 0xff9f2a, width: 1, alpha: 0.9 });
+
+          // halo corto cuando la nurse alimenta (+5)
+          if ((ei as any)._feedFx > 0) {
+            this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+              .circle(ex, ey, 5)
+              .stroke({ color: 0x00ff99, width: 2, alpha: 0.9 });
+            (ei as any)._feedFx--;
+          }
         }
-      }// progreso de construcción: ilumina el contorno según built/target
-const built = (h as any).builtUnits ?? 0;
-const target = (h as any).targetUnits ?? 0;
-const done = !!(h as any).completed;
-const prog   = target > 0 ? Math.min(1, built/target) : (done ? 1 : 1);
-if (!done && target > 0 && built > 0) {
+      }
 
-  this.drawHexNeon(g, pts, 3, prog);
+      // progreso de construcción: ilumina el contorno según built/target
+      const built = (h as any).builtUnits ?? 0;
+      const target = (h as any).targetUnits ?? 0;
+      const done = !!(h as any).completed;
+      const prog   = target > 0 ? Math.min(1, built/target) : (done ? 1 : 1);
+      if (!done && target > 0 && built > 0) {
+        this.drawHexNeon(g, pts, 3, prog);
 
-  // vértices como pares {x,y}
-  const verts: Array<{x:number,y:number}> = [];
-  for (let i=0;i<6;i++){
-    const a = Math.PI/3*i + Math.PI/6;
-    verts.push({ x: cx + r*Math.cos(a), y: cy + r*Math.sin(a) });
-  }
-  const total = Math.min(1, built / target) * 6;
-  const full = Math.floor(total);
-  const partial = total - full;
+        // línea de progreso en aristas
+        const verts: Array<{x:number,y:number}> = [];
+        for (let i=0;i<6;i++){
+          const a = Math.PI/3*i + Math.PI/6;
+          verts.push({ x: cx + r*Math.cos(a), y: cy + r*Math.sin(a) });
+        }
+        const total = Math.min(1, built / target) * 6;
+        const full = Math.floor(total);
+        const partial = total - full;
 
-  // empieza en el primer vértice
-  g.moveTo(verts[0].x, verts[0].y);
-  for (let i=1; i<=full; i++){
-    const v = verts[i % 6];
-    g.lineTo(v.x, v.y);
-  }
-  if (partial > 0){
-    const a = verts[full % 6];
-    const b = verts[(full + 1) % 6];
-    const px = a.x + (b.x - a.x) * partial;
-    const py = a.y + (b.y - a.y) * partial;
-    g.lineTo(px, py);
-  }
-  g.stroke({ color: 0xff3abf, width: 4, alpha: 0.95 });
-}
+        g.moveTo(verts[0].x, verts[0].y);
+        for (let i=1; i<=full; i++){
+          const v = verts[i % 6];
+          g.lineTo(v.x, v.y);
+        }
+        if (partial > 0){
+          const a = verts[full % 6];
+          const b = verts[(full + 1) % 6];
+          const px = a.x + (b.x - a.x) * partial;
+          const py = a.y + (b.y - a.y) * partial;
+          g.lineTo(px, py);
+        }
+        g.stroke({ color: 0xff3abf, width: 4, alpha: 0.95 });
+      }
+
       // huevos "colocados" en el hex (spots + born)
       const born = (h as any).eggs?.born ?? 0;
       const spots = (h as any).eggs?.spots as Array<{ x: number, y: number }> | undefined;
@@ -302,7 +308,51 @@ if (!done && target > 0 && built > 0) {
       g.x = (a as any).x ?? 0;
       g.y = (a as any).y ?? 0;
       drawAnt(g, a as any);
+
+if ((a as any).kind === "nurse") {
+  const pulse = (a as any).pulse ?? 0.9;
+  // halo blanco por encima
+  this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+    .circle(g.x, g.y, 4)
+    .stroke({ color: 0xffffff, width: 2, alpha: 0.6 * pulse + 0.3 });
+
+  // pellet verde si lleva comida (carryingUnits > 0)
+  if (((a as any).carryingUnits ?? 0) > 0) {
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .circle(g.x, g.y, 2.5)
+      .fill(0x9cffc7, 0.95)
+      .stroke({ color: 0x00ff99, width: 1, alpha: 0.9 });
+  }
+}
       g.visible = true;
+
+
+
+      // Nurse: overlay por encima para que siempre se vea
+if ((a as any).kind === "nurse") {
+  const pulse = (a as any).pulse ?? 0.9;
+  // halo blanco suave encima de todo
+  this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+    .circle(g.x, g.y, 4)
+    .stroke({ color: 0xffffff, width: 2, alpha: 0.6 * pulse + 0.3 });
+
+  // === EFECTO DE CARGA: si va con comida, un pellet verde brillante en su posición ===
+  if (((a as any).carryingUnits ?? 0) > 0) {
+    this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+      .circle(g.x, g.y, 2.5)
+      .fill(0x9cffc7, 0.95)
+      .stroke({ color: 0x00ff99, width: 1, alpha: 0.9 });
+  }
+}
+
+      // --- Nurse: overlay en capa FX para que no la tape la capa de huevos ---
+if ((a as any).kind === "nurse") {
+  const pulse = (a as any).pulse ?? 0.9;
+  this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+    .circle(g.x, g.y, 4) // aro por encima
+    .stroke({ color: 0xffffff, width: 2, alpha: 0.6 * pulse + 0.3 });
+}
+
     }
 
     // limpiar hormigas que ya no existen
@@ -314,5 +364,3 @@ if (!done && target > 0 && built > 0) {
     }
   }
 }
-
-

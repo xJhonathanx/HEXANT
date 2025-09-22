@@ -83,3 +83,4 @@ export const EGG_LAY_PERIOD = 30;  // 30 ticks por huevo
 export const MAX_EGGS_AT_QUEEN = 6;// tope de huevos renderizados en la reina
 
 
+
