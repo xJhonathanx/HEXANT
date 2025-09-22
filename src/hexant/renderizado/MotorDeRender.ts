@@ -189,17 +189,41 @@ private _lerpColor(c1:number, c2:number, t:number){
       const cx = (h as any).cx;
       const cy = (h as any).cy;
 
+      
+
      const pts: number[] = [];
 for (let i = 0; i < 6; i++) {
   const a = Math.PI / 3 * i + Math.PI / 6;
   pts.push(cx + r * Math.cos(a), cy + r * Math.sin(a));
 }
-this.drawHexNeon(g, pts, 3); 
-// progreso de construcción: ilumina el contorno según built/target
+this.drawHexNeon(g, pts, 3);
+      // huevos incubando (entidades)
+      const incubating = (w.eggs ?? []).filter(e => e.state === 'incubating' && (e as any).hexId === (h as any).id);
+      if (incubating.length > 0) {
+        const rr = r * 0.72; // radio interior
+        for (let i = 0; i < incubating.length; i++) {
+          const e:any = incubating[i];
+          let ex = e.x, ey = e.y;
+          if (ex == null || ey == null) {
+            const idx = (e.slot ?? i) % 6;
+            const aa = Math.PI / 3 * idx + Math.PI / 6;
+            ex = cx + rr * Math.cos(aa);
+            ey = cy + rr * Math.sin(aa);
+          }
+          this.getFromPool(this.foodPool, this.fx, this.foodUsed++)
+            .circle(ex, ey, 3)
+            .fill(0xffc14a, 0.95)
+            .stroke({ color: 0xff9f2a, width: 1, alpha: 0.9 });
+        }
+      }// progreso de construcción: ilumina el contorno según built/target
 const built = (h as any).builtUnits ?? 0;
 const target = (h as any).targetUnits ?? 0;
 const done = !!(h as any).completed;
+const prog   = target > 0 ? Math.min(1, built/target) : (done ? 1 : 1);
 if (!done && target > 0 && built > 0) {
+
+  this.drawHexNeon(g, pts, 3, prog);
+
   // vértices como pares {x,y}
   const verts: Array<{x:number,y:number}> = [];
   for (let i=0;i<6;i++){
@@ -290,4 +314,5 @@ if (!done && target > 0 && built > 0) {
     }
   }
 }
+
 

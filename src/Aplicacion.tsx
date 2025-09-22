@@ -1,4 +1,6 @@
-﻿import React, { useEffect, useRef } from "react";
+﻿//E:\GAME\HEXANTV1\src\Aplicacion.tsx
+
+import React, { useEffect, useRef } from "react";
 import { Application } from "pixi.js";
 import { MotorDeRender } from "./hexant/renderizado";
 import { QueenFX } from "./hexant/renderizado/QueenFX";

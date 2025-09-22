@@ -13,7 +13,7 @@ export const STARVE_INSIDE   = 5 * TICKS_PER_MIN;
 
 /* =================== Cría (huevos) =================== */
 export const HATCH_TIME    = 45 * TICKS_PER_SEC; // 45 s de incubación
-export const EGGS_NEED_UND = 100;                // 100 und de comida para el lote
+export const EGGS_NEED_UND = 25;                // 100 und de comida para el lote
 export const EGGS_TTL_TICKS = 5 * TICKS_PER_MIN; // 5 minutos sin alimentar  desaparecen
 
 /* ================= Viajes / carga ================= */
@@ -81,4 +81,5 @@ export const DEFAULT_FOOD_DROP = 25;
 export const EGG_COST = 25;        // 25 und por huevo
 export const EGG_LAY_PERIOD = 30;  // 30 ticks por huevo
 export const MAX_EGGS_AT_QUEEN = 6;// tope de huevos renderizados en la reina
+
 

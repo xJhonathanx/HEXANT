@@ -1,20 +1,22 @@
-﻿import { builderBrain } from "../inteligencia/cerebros/BuilderBrain";
-import type { World } from "../../tipos";
+﻿import type { World } from "../../tipos";
 import type { Cfg } from "../configuracion/predeterminados";
-import { workerBrain } from "../inteligencia/cerebros/Cerebros";
+import { workerBrain, builderBrain, nurseBrain } from "../inteligencia/cerebros/Cerebros";
 
-export function SistemaIA(w:World, _cfg:Cfg){
-  const q = w.hexes.find(h=> (h as any).host==="queen");
-  const cx = q?.cx ?? 0, cy = q?.cy ?? 0;
-  const anyFood = w.food.find(f=> (f.amount ?? 0) > 0);
+export function SistemaIA(w: World, _cfg: Cfg){
+  // centro de referencia: la reina si existe
+  const q = w.hexes.find(h => (h as any).host === "queen") as any;
+  const cx = q?.cx ?? 0;
+  const cy = q?.cy ?? 0;
 
-  for (const a of w.ants){
-    if (a.kind === "worker"){
-      // Mantén la firma que ya usabas para obreras
-      (workerBrain as any)(w, a as any, cx, cy, anyFood as any);
-    } else if (a.kind === "builder"){
-      builderBrain(w as any, a as any, cx, cy);
-    }
+  // pista de comida para workerBrain (hint opcional)
+  const anyFood = w.food.find(f => (f as any).amount > 0);
+
+  for (const a of (w.ants as any[])) {
+    if (a.kind === "worker")      workerBrain(w, a);
+    else if (a.kind === "builder")builderBrain(w, a);
+    else if (a.kind === "nurse")  nurseBrain(w, a);
+    // soldiers, scout, kel, etc. se manejan en sus sistemas específicos
   }
 }
+
 

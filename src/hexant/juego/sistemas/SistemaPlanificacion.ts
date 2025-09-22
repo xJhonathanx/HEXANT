@@ -37,7 +37,7 @@ export function SistemaPlanificacion(w: World, _cfg: Cfg) {
       id: w.nextHexId++,
       cx: (qh as any).cx + p.x, cy: (qh as any).cy + p.y,
       sidePx: S, aq: nq, ar: nr,
-      host: "builder",
+      host: "builder", capacity: 6, occupancy: 0,
       completed: false,
       builtUnits: 0,
       targetUnits: 100, // coste total en unidades de banco
@@ -48,3 +48,4 @@ export function SistemaPlanificacion(w: World, _cfg: Cfg) {
     break;
   }
 }
+

@@ -1,5 +1,6 @@
 ﻿/**
  * hex.ts  Conversión axialpixel (pointy-top) + vértices de hex.
+ * E:\GAME\HEXANTV1\src\hexant\utilidades\hex.ts
  */
 export function hexVertices(cx:number, cy:number, side:number){
   const out:{x:number;y:number}[] = [];
