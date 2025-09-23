@@ -33,55 +33,44 @@ export default function Aplicacion() {
       });
       if (!hostRef.current) return;
 
-      hostRef.current.appendChild(app.canvas);
-
-      // sincroniza buffer interno con tamaño CSS/DPR
+      // Hace que el buffer del renderer siga el tamaño visual del canvas
       unresize = ensureRendererMatchesCSS(app);
 
-      //  Espera un frame para que ResizeObserver aplique el tamaño real
-      await new Promise(requestAnimationFrame);
-
-      // Dimensiones reales del renderer
-      const W = app.renderer.width;
-      const H = app.renderer.height;
-
-      // Mundo centrado con el tamaño real
-      w = crearMundoInicial(W, H);
-      bootstrapWorld(w, cfg, W * 0.5, H * 0.5);
-
-      // Centra la cámara sobre la reina por seguridad
-      const q = w.hexes.find(h => (h as any).host === "queen") as any;
-      (w as any).camera = (w as any).camera ?? { x: 0, y: 0, scale: 1 };
-      if (q) {
-        (w as any).camera.x = q.cx - W * 0.5;
-        (w as any).camera.y = q.cy - H * 0.5;
-      }
-
+      hostRef.current.appendChild(app.canvas);
       motor = new MotorDeRender(app);
       overlay = new OverlayScout(app);
       qfx = new QueenFX(app);
 
-      // Primer render
+      // Mundo
+      w = crearMundoInicial(app.renderer.width, app.renderer.height);
+      const cx = app.renderer.width * 0.5;
+      const cy = app.renderer.height * 0.5;
+      bootstrapWorld(w, cfg, cx, cy);
+
+      // Sistemas (loop)
+      const { ejecutarSistemas } = await import("./hexant/juego/sistemas");
       motor.renderWorld(w);
       overlay.update(w);
       qfx.update(w);
 
-      // === ENTRADA SOBRE EL CANVAS (coordenadas de MUNDO) ===
+      // === ENTRADA SOBRE EL CANVAS (coordenadas de MUNDO, no CSS) ===
       onCtx = (e: MouseEvent) => {
         if (!w || !app) return;
-        e.preventDefault();
-        const p = eventToWorld(app!, w as any, e);
+        e.preventDefault(); // anula menú contextual y evita zoom del navegador
+
+        const p = eventToWorld(app, w, e); // <- conversión correcta pantallamundo
+
         if (e.shiftKey)      placePattern(w, p.x, p.y);
         else if (e.ctrlKey)  placeHazard(w, p.x, p.y);
         else                 placeFood(w, p.x, p.y, 25);
+
         motor!.renderWorld(w);
         overlay!.update(w);
         qfx!.update(w);
       };
       app.canvas.addEventListener("contextmenu", onCtx, { passive: false });
 
-      // Loop de juego
-      const { ejecutarSistemas } = await import("./hexant/juego/sistemas");
+      // Reloj
       reloj = new Reloj((_dt) => {
         if (!w) return;
         ejecutarSistemas(w, cfg);
