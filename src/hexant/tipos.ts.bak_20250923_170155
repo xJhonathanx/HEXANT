@@ -1,0 +1,239 @@
+﻿export type AntState = "foraging" | "returning" | "waiting" | "building" | "nesting" | "dead";
+export type AntKind  = "worker" | "soldier" | "builder";
+export type HostKind = "worker" | "builder" | "soldier" | "queen";
+
+
+export type Camera = { x:number; y:number; scale:number; min?:number; max?:number };
+export type UIState = { influenceFlashTicks:number };
+
+/** Solo líneas, círculos y etiquetas (letras). */
+export type Decoration = {
+  id: number;
+  kind: "line" | "circle" | "label";
+  x: number; y: number;
+  size: number;           // largo (line) o diámetro (circle)
+  angle: number;          // rad (usa line)
+  color: string;          // css
+  carriedBy: number | null;
+  text?: string;          // para kind:"label"
+};
+
+export type Ant = {
+  id:number;
+  kind: AntKind;
+  x:number; y:number; vx:number; vy:number;
+  state: AntState;
+  ageTicks?: number;
+
+  homeHexId: number | null;
+  hungerUnd?: number;
+  starveTicks?: number;
+
+  carryingUnits?: number;
+  lastFoodPos?: {x:number;y:number}|null;
+
+  attackCd?: number;
+
+  /** si la builder lleva una deco suelta */
+  carryingDecoId?: number | null;
+
+  energyPct?: number;
+  totalDistPx?: number;
+  waitTicks?: number;
+  targetHexId?: number | null;
+};
+
+export type Food    = { x:number; y:number; amount:number; initial:number };
+export type Hazard  = { x:number; y:number; r:number; hp:number; vx:number; vy:number };
+export type Corpse  = { x:number; y:number; units:number };
+export type Beacon  = { x:number; y:number; strength:number; decay:number; ttl:number };
+
+/** Huevos  extendido para los sistemas de cría y UI */
+export type EggBatch = {
+  active: boolean;
+  fed: number;
+  hatchTicks?: number;
+  tStart?: number;
+  born?: number;
+  count?: number;
+  ageTicks?: number;
+  spots?: {x:number;y:number}[];
+};
+
+export type Hex = {
+  id: number;
+  cx: number; cy: number;
+  sidePx: number;
+  targetUnits: number;
+  builtUnits: number;
+  host: HostKind;
+  capacity: number;
+  occupancy: number;
+  completed: boolean;
+  stockUnd: number;
+  eggs?: EggBatch;
+
+  aq?: number;
+  ar?: number;
+
+  connections?: number;
+  decos?: Decoration[];
+};
+
+export type WorldMeta = {
+  broodTargetHexId: number | null;
+  broodEggsStaged: number;
+  broodTransferPending: boolean;
+  buildCooldownTicks: number;
+
+  domeRadius?: number;
+  foodField?: { seed:number; nextRefreshTick:number; lastRadius?:number; cells?: Record<string, { q:number; r:number; x:number; y:number }>; };
+  fow?: { visited: Set<string>; scale: number };
+};
+
+export type World = {
+  domeRadius?: number;
+  foodField?: {
+    seed: number;
+    nextRefreshTick: number;
+    lastRadius?: number;
+    cells?: Record<string, { q:number; r:number; x:number; y:number }>;
+  };
+
+  fow?: { visited: Set<string>; scale: number };
+  guitoPulses?: Array<{ a:number; b:number; t:number; speed:number }>;
+  
+  eggs: Egg[];
+  nextEggId: number;
+  ants: Ant[];
+  food: Food[];
+  hazards: Hazard[];
+  corpses: Corpse[];
+  beacons: Beacon[];
+
+  looseDecos: Decoration[];
+  nextDecoId: number;
+
+  stockFood?: number;      // (legacy) si lo usas en otros sitios
+  stockTotal?: number;     // (legacy)
+ 
+
+  hexes: Hex[];
+  nextHexId: number;
+
+  spawnCooldown?: number;
+  nextAntId: number;
+  noFoodTicks?: number;
+
+  camera?: Camera;
+  ui?: UIState;
+
+  meta?: WorldMeta;
+
+  _tick?: number;
+};
+
+/** === Entidad Huevo === */
+
+
+export type EggState = "atQueen" | "carried" | "incubating";
+
+export interface Egg {
+  id: number
+  x: number
+  y: number
+  /** "atQueen": orbitando a la reina; "carried": en traslado; "incubating": colocado en un # --- FIX MotorDeRender.ts: agrega drawQueen y tipos ---
+$mf = "src/hexant/renderizado/MotorDeRender.ts"
+if (-not (Test-Path $mf)) { throw "No existe $mf" }
+
+# 0) Backup
+Copy-Item $mf "$mf.bak_$(Get-Date -Format 'yyyyMMdd_HHmmss')" -Force
+
+# 1) Leer
+$m = Get-Content $mf -Raw
+
+# 2) Quitar import duplicado de Graphics si hay dos
+$m = [regex]::Replace($m,'(?m)^\s*import\s+\{\s*Graphics\s*\}\s+from\s+"pixi\.js";\s*\r?\n','')
+
+# 3) Asegurar import de tipos World/Ant
+if ($m -notmatch 'from\s+"../tipos"') {
+  $m = [regex]::Replace($m,
+    '(?m)^(import\s+\{[^\}]+\}\s+from\s+"pixi\.js";\s*)',
+    '$1' + "import type { World, Ant } from `"../tipos`";`r`n", 1)
+} else {
+  $m = [regex]::Replace($m,
+    '(?m)^import\s+type\s+\{\s*([^\}]*)\}\s+from\s+"../tipos";',
+    {
+      param($mx)
+      $names = $mx.Groups[1].Value -split '\s*,\s*' | Where-Object { $_ -ne '' }
+      if ($names -notcontains 'World') { $names += 'World' }
+      if ($names -notcontains 'Ant')   { $names += 'Ant' }
+      'import type { ' + (($names | Select-Object -Unique) -join ', ') + ' } from "../tipos";'
+    }, 1)
+}
+
+# 4) Campo queenG dentro de la clase si no existe
+if ($m -notmatch 'private\s+queenG\s*:\s*Graphics') {
+  $m = [regex]::Replace($m,
+    'export\s+class\s+MotorDeRender\s*\{',
+    'export class MotorDeRender {' + "`r`n  private queenG: Graphics = new Graphics();",
+    1)
+}
+
+# 5) Método drawQueen si falta
+if ($m -notmatch 'drawQueen\s*\(\s*w\s*:\s*World') {
+  $method = @'
+  private drawQueen(w:World){
+    const q = (w.hexes as any[]).find((h:any)=>h.host==="queen");
+    this.queenG.clear();
+    if (!q) return;
+
+    // Asegura que esté en la capa mundo
+    if (!this.queenG.parent && (this.mundo as any)?.addChild) {
+      this.mundo.addChild(this.queenG);
+    }
+
+    const r = (q.sidePx ?? 24) * 0.35;
+    const t = (w._tick ?? 0);
+    const pulse = 0.5 + 0.5*Math.sin(t*0.1);
+
+    // disco brillante
+    this.queenG.circle(q.cx, q.cy, r).fill(0xfff6a0, 0.95);
+    // aro pulsante
+    this.queenG.circle(q.cx, q.cy, r + 3 + 3*pulse).stroke({ width:2, color:0xffec8b, alpha:0.9 });
+  }
+'@
+  # Inserta antes de la última llave del archivo
+  $m = [regex]::Replace($m, '\}\s*$', $method + "`r`n}", 1)
+}
+
+# 6) Llamada a drawQueen tras syncAnts (si falta)
+if ($m -notmatch 'this\.drawQueen\(') {
+  $m = [regex]::Replace($m, 'this\.syncAnts\(w\);\s*', 'this.syncAnts(w); this.drawQueen(w); ', 1)
+}
+
+# 7) Tipar lambdas para evitar implicit any
+$m = [regex]::Replace($m, '\bw\.ants\.filter\(\s*a\s*=>', 'w.ants.filter((a:Ant)=>')
+$m = [regex]::Replace($m, '\bw\.food\.filter\(\s*f\s*=>', 'w.food.filter((f:any)=>')
+$m = [regex]::Replace($m, '\bfilter\(\s*e\s*=>\s*e\.state\s*===\s*"atQueen"\)', 'filter((e:any)=> e.state==="atQueen")')
+
+# 8) Guardar
+Set-Content -Encoding UTF8 $mf $m
+
+# 9) Compilar
+npm run check
+hex en incubación */
+  state: "atQueen" | "carried" | "incubating"
+  /** id de quien lo transporta (nurse/ant). null/undefined si no aplica */
+  carrierId?: number | null
+  /** hex destino para incubación. null/undefined si no aplica */
+  targetHexId?: number | null
+  /** progreso de alimentación acumulado (unidades) */
+  fed?: number
+  /** tick de referencia para animaciones/TTL */
+  tStart?: number
+  /** ticks restantes para eclosionar (si aplica) */
+  hatchTicks?: number
+}
+
+

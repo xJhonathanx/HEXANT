@@ -1,4 +1,4 @@
-export type AntState = "foraging" | "returning" | "waiting" | "building" | "nesting" | "dead";
+﻿export type AntState = "foraging" | "returning" | "waiting" | "building" | "nesting" | "dead";
 export type AntKind  = "worker" | "soldier" | "builder";
 export type HostKind = "worker" | "builder" | "soldier" | "queen";
 

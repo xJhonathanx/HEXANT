@@ -363,7 +363,7 @@ export class MotorDeRender {
     const t = this.animT;
 
     for (const h of w.hexes) {
-    /* culling */ if (!this._inView(w, h.cx, h.cy)) continue;const g = this.getFromPool(this.hexPool, this.layerHex, this.hexUsed++);
+      const g = this.getFromPool(this.hexPool, this.layerHex, this.hexUsed++);
       const r = (h as any).sidePx;
       const cx = (h as any).cx;
       const cy = (h as any).cy;
@@ -495,7 +495,7 @@ export class MotorDeRender {
   // ===== food =====
   private syncFood(w: World) {
     for (const f of w.food) {
-    /* culling */ if (!this._inView(w, f.x, f.y)) continue;if ((f as any).amount <= 0) continue;
+      if ((f as any).amount <= 0) continue;
       this.getFromPool(this.foodPool, this.layerFood, this.foodUsed++) .circle((f as any).x, (f as any).y, 5).fill(0x6cf9ff, 1).stroke({ color: 0xffffff, width: 1, alpha: 0.85 });
     }
   }
@@ -503,7 +503,7 @@ export class MotorDeRender {
   // ===== hazards =====
   private syncHazards(w: World) {
     for (const hz of w.hazards) {
-    /* culling */ if (!this._inView(w, hz.x, hz.y)) continue;this.getFromPool(this.hazardPool, this.layerHaz, this.hazardUsed++)
+      this.getFromPool(this.hazardPool, this.layerHaz, this.hazardUsed++)
         .circle((hz as any).x, (hz as any).y, 10)
         .fill(0xff4b46, 0.9);
     }
@@ -607,18 +607,7 @@ export class MotorDeRender {
       .moveTo(rx, ry).lineTo(sx, sy)
       .stroke({ color: 0x19c7d4, width: 3, alpha: 0.9 });
   }
-  private _inView(w: World, x: number, y: number, pad: number = 64): boolean {
-    const cam: any = (w as any).camera ?? { x: 0, y: 0, scale: 1 };
-    const W = this.app.renderer.width;
-    const H = this.app.renderer.height;
-    const s = cam.scale || 1;
-    const left   = cam.x - pad;
-    const top    = cam.y - pad;
-    const right  = cam.x + (W / s) + pad;
-    const bottom = cam.y + (H / s) + pad;
-    return x >= left && x <= right && y >= top && y <= bottom;
-  }}
-
+}
 
 
 

@@ -65,6 +65,8 @@ export function ejecutarSistemas(w: World, cfg: Cfg) {
   // 9) guito (produce comida)
   SistemaGuito(w);
   SistemaMinimapFOW(w);
+if (typeof SistemaIA === "function") SistemaIA(w, cfg);
+  if (typeof SistemaMetabolismo === "function") SistemaMetabolismo(w, cfg);
 
 }
 
