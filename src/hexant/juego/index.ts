@@ -4,6 +4,7 @@ import { randf } from "../utilidades/matematica";
 import { axialToPixelPT } from "../utilidades/hex";
 
 
+
 /** Vecinos en axial (pointy-top) */
 const DIRS: Array<[number, number]> = [
   [1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1],

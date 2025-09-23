@@ -1,0 +1,22 @@
+﻿import type { Application } from "pixi.js";
+import type { World } from "../tipos";
+
+/** Convierte un punto del mouse en px CSS (clientX/Y) a px internos del renderer. */
+export function cssToRendererXY(app: Application, clientX: number, clientY: number){
+  const view = app.view as HTMLCanvasElement;
+  const rect = view.getBoundingClientRect();
+  const sx = app.renderer.width  / rect.width;
+  const sy = app.renderer.height / rect.height;
+  return {
+    x: (clientX - rect.left) * sx,
+    y: (clientY - rect.top)  * sy,
+  };
+}
+
+/** Convierte (clientX, clientY) a coordenadas de MUNDO, aplicando pan/zoom correctamente. */
+export function screenToWorld(app: Application, w: World, clientX: number, clientY: number){
+  const cam:any = (w as any).camera ?? { x:0, y:0, scale:1 };
+  const { x:rx, y:ry } = cssToRendererXY(app, clientX, clientY);
+  const s = cam.scale ?? 1;
+  return { x: (cam.x ?? 0) + rx / s, y: (cam.y ?? 0) + ry / s };
+}

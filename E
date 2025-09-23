@@ -1,0 +1,143 @@
+﻿import type { Application } from "pixi.js";
+import { CameraInput } from "../input/CameraInput";
+import type { World } from "../tipos";
+import { CameraInput } from "../input/CameraInput";
+import { MIN_ZOOM, MAX_ZOOM, CAM_PAN_SPEED } from "../juego/configuracion/predeterminados";
+import { CameraInput } from "../input/CameraInput";
+
+export class CameraInput {
+  private baseSpeed = 8;
+
+  private app: Application;
+  private w: World;
+  private keys = new Set<string>();
+
+  constructor(app:Application, world:World){
+    (this as any).world = world;
+this.app = app; this.w = world;
+
+    // init camera if missing
+    (this.w as any).camera = (this.w as any).camera ?? { x:0, y:0, scale:1, min:MIN_ZOOM, max:MAX_ZOOM };
+
+    // === Card / borde neón (inyecta estilos solo una vez) ===
+    this.ensureNeonCard(this.app.view as HTMLCanvasElement);
+
+    const view = (this.app.view as HTMLCanvasElement);
+
+    
+    // teclado fiable
+    view.tabIndex = 0; try { view.focus(); } catch {}// === Zoom Ctrl+wheel anclado al cursor ===
+    view.addEventListener("wheel", (ev:WheelEvent)=>{
+      if (!ev.ctrlKey) return;
+      ev.preventDefault();
+
+      const cam:any = (this.w as any).camera;
+      const oldS = cam.scale ?? 1;
+      const sMin = cam.min ?? MIN_ZOOM;
+      const sMax = cam.max ?? MAX_ZOOM;
+
+      const zoomFactor = Math.pow(1.0015, -ev.deltaY); // suave
+      const newS = Math.min(sMax, Math.max(sMin, oldS * zoomFactor));
+      if (newS === oldS) return;
+
+      const rect = view.getBoundingClientRect();
+      const mx = ev.clientX - rect.left;
+      const my = ev.clientY - rect.top;
+
+      // punto de mundo bajo el cursor (antes)
+      const wx = (cam.x ?? 0) + mx / oldS;
+      const wy = (cam.y ?? 0) + my / oldS;
+
+      cam.scale = newS;
+
+      // re-ancle: que (wx,wy) siga bajo el cursor
+      cam.x = wx - mx / newS;
+      cam.y = wy - my / newS;
+    }, { passive:false });
+
+    // === Pan con teclado (WASD) ===
+    window.addEventListener("keydown", (e)=> this.keys.add(e.key.toLowerCase()));
+    window.addEventListener("keyup",   (e)=> this.keys.delete(e.key.toLowerCase()));
+
+    app.ticker.add(() => {
+      const cam:any = (this.w as any).camera;
+      const base = CAM_PAN_SPEED;
+      const mul =
+        (this.keys.has("shift") ? 2 : 1) *
+        (this.keys.has("alt") ? 0.5 : 1);
+
+      let dx = 0, dy = 0;
+      if (this.keys.has("a")) dx -= 1;
+      if (this.keys.has("d")) dx += 1;
+      if (this.keys.has("w")) dy -= 1;
+      if (this.keys.has("s")) dy += 1;
+      if (dx || dy){
+        cam.x += dx * base * mul;
+        cam.y += dy * base * mul;
+      }
+    });
+  }
+
+  private ensureNeonCard(view: HTMLCanvasElement){
+    view.classList.add("pixi-card");
+    if (!document.getElementById("neon-card-style")){
+      const css = `
+        html,body,#root{height:100%} body{margin:0;background:#0a0d11}
+        canvas.pixi-card{
+          display:block; width:92vw; height:92vh; margin:4vh auto;
+          border-radius:16px; background:#0a0d11;
+          box-shadow: 0 0 0 2px rgba(0,255,255,.08), 0 0 18px rgba(0,200,255,.12), inset 0 0 12px rgba(0,255,255,.06);
+        }`;
+      const style = document.createElement("style");
+      style.id = "neon-card-style"; style.textContent = css;
+      document.head.appendChild(style);
+    }
+  }
+  private step(){
+    const cam = (this as any).world.camera as any;
+    if (!cam) return;
+    const dt = (this.app.ticker?.deltaMS ?? 16.6) / 16.6; // ~1 a 60fps
+    let s = (cam.panSpeed ?? this.baseSpeed) * dt;
+    if (this.keys.has("shift")) s *= 2;
+    if (this.keys.has("alt"))   s *= 0.5;
+
+    let dx = 0, dy = 0;
+    if (this.keys.has("a")) dx -= s;
+    if (this.keys.has("d")) dx += s;
+    if (this.keys.has("w")) dy -= s;
+    if (this.keys.has("s")) dy += s;
+
+    if (dx !== 0 || dy !== 0){
+      cam.x = (cam.x ?? 0) + dx;
+      cam.y = (cam.y ?? 0) + dy;
+    }
+  }
+  private onWheel(ev: WheelEvent){
+    if (!ev.ctrlKey) return;
+    ev.preventDefault();
+    const w:any = (this as any).world;
+    w.camera = w.camera ?? { x:0, y:0, scale:1, min:0.4, max:2.5 };
+    const cam:any = w.camera;
+
+    const view = this.app.view as HTMLCanvasElement;
+    const rect = view.getBoundingClientRect();
+    const mx = ev.clientX - rect.left;
+    const my = ev.clientY - rect.top;
+
+    const s1 = cam.scale ?? 1;
+    const MIN = cam.min ?? 0.4, MAX = cam.max ?? 2.5;
+    const factor = Math.pow(1.0015, -ev.deltaY); // suave
+    const s2 = Math.max(MIN, Math.min(MAX, s1 * factor));
+    if (s2 === s1) return;
+
+    // mundo bajo el cursor antes del cambio
+    const wx = cam.x + mx / s1;
+    const wy = cam.y + my / s1;
+
+    cam.scale = s2;
+    // re-colocar para anclar al cursor
+    cam.x = wx - mx / s2;
+    cam.y = wy - my / s2;
+  }
+}
+

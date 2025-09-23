@@ -254,8 +254,6 @@ export class MotorDeRender {
   renderWorld(w: World) {
     // tiempo normalizado (1 por frame a 60fps)
     this.animT += (this.app.ticker?.deltaMS ?? 16.6) / 16.6;
-    // tiempo normalizado (1 por frame a 60fps)
-    this.animT += (this.app.ticker?.deltaMS ?? 16.6) / 16.6;
     // avance de tiempo normalizado (≈1 por frame a 60fps)
     this.animT += (this.app.ticker?.deltaMS ?? 16.6) / 16.6;
   // Inicializar input de cámara una sola vez (WASD + Ctrl+rueda)
@@ -608,7 +606,6 @@ export class MotorDeRender {
       .stroke({ color: 0x19c7d4, width: 3, alpha: 0.9 });
   }
 }
-
 
 
 

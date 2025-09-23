@@ -14,7 +14,7 @@ export function SistemaInfluencia(w:World, _dt:number){
 
   // expone para el render del domo
   (w as any).domeRadius = R;
-
+ ((w as any).meta = (w as any).meta ?? {}).domeRadius = R; // ← NUEVO
   // correa de atracción con ese mismo radio
   for(const a of w.ants){
     if (a.state === "dead") continue;

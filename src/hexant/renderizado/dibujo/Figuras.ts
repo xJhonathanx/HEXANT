@@ -1,6 +1,7 @@
 ﻿/**
  * Figuras.ts — helpers de dibujo (Pixi v8).
  * Usamos utilidades de hex para calcular vértices.
+ * E:\GAME\HEXANTV1\src\hexant\renderizado\dibujo\Figuras.ts
  */
 import { Graphics } from "pixi.js";
 import { hexVertices } from "../../utilidades/hex";

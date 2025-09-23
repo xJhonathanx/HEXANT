@@ -85,10 +85,6 @@ export type WorldMeta = {
   broodEggsStaged: number;
   broodTransferPending: boolean;
   buildCooldownTicks: number;
-
-  domeRadius?: number;
-  foodField?: { seed:number; nextRefreshTick:number; lastRadius?:number; cells?: Record<string, { q:number; r:number; x:number; y:number }>; };
-  fow?: { visited: Set<string>; scale: number };
 };
 
 export type World = {
@@ -235,5 +231,4 @@ hex en incubación */
   /** ticks restantes para eclosionar (si aplica) */
   hatchTicks?: number
 }
-
 

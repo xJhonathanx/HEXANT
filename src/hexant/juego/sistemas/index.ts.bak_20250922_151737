@@ -11,8 +11,6 @@ import { SistemaBuilder } from "./SistemaBuilder";
 import { SistemaInfluencia } from "./SistemaInfluencia";
 import { SistemaEclosion } from "./SistemaEclosion"; // ← eclosión
 import { SistemaGuito } from "./SistemaGuito";
-import { SistemaScout } from "./SistemaScout";
-import { SistemaMinimapFOW } from "./SistemaMinimapFOW";
 import { SistemaComidaCampo } from "./SistemaComidaCampo";
 
 
@@ -45,7 +43,6 @@ export function ejecutarSistemas(w: World, cfg: Cfg) {
 
   // 4) AIR (radio dinámico y correa)
   SistemaInfluencia(w, 0);
-  SistemaScout(w, cfg);
 // 4.1) comida en campo (genera comida nueva si hace falta)
   SistemaComidaCampo(w);
 
@@ -64,11 +61,7 @@ export function ejecutarSistemas(w: World, cfg: Cfg) {
 
   // 9) guito (produce comida)
   SistemaGuito(w);
-  SistemaMinimapFOW(w);
 if (typeof SistemaIA === "function") SistemaIA(w, cfg);
   if (typeof SistemaMetabolismo === "function") SistemaMetabolismo(w, cfg);
 
 }
-
-
-

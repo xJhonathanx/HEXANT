@@ -71,4 +71,3 @@ if (typeof SistemaIA === "function") SistemaIA(w, cfg);
 }
 
 
-

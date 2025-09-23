@@ -83,4 +83,16 @@ export const EGG_LAY_PERIOD = 30;  // 30 ticks por huevo
 export const MAX_EGGS_AT_QUEEN = 6;// tope de huevos renderizados en la reina
 
 
+/* ====== Grid (visual) ====== */
+export const GRID_COLOR = 0x2a2e33;
+export const GRID_ALPHA = 0.32;
 
+/* ====== Campo de comida (spawn dentro de AIR) ====== */
+export const FOOD_FIELD_TARGET_UNITS = 10000;  // total a mantener
+export const FOOD_FIELD_REFRESH_SEC  = 600;    // 10 min
+export const FOOD_NODE_SIZE          = 10;     // und por nodo
+
+/* ====== Cámara ====== */
+export const MIN_ZOOM = 0.4;
+export const MAX_ZOOM = 2.5;
+export const CAM_PAN_SPEED = 8; // px de mundo por tick

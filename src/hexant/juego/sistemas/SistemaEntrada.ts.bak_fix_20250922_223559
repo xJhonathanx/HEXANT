@@ -1,0 +1,61 @@
+﻿/**
+ * SistemaEntrada  helpers que invoca la UI (Aplicacion.tsx).
+ * Click derecho: comida (10). Shift: patrón. Ctrl: peligro.
+ * E:\GAME\HEXANTV1\src\hexant\juego\sistemas\SistemaEntrada.ts
+ */
+import type { World } from "../../tipos";
+import { stampFoodPattern } from "../contenido/Patrones";
+
+export function placeFood(w:World, x:number, y:number, amount=10){
+  const __tmp = {  x, y, amount, initial: amount  }; ( __tmp as any ).outside = true; w.food.push(__tmp);
+}
+export function placePattern(w:World, x:number, y:number){
+  stampFoodPattern(w, x, y, { kind:"random", cellSize:24, amountPerCell:10 });
+}
+export function placeHazard(w:World, x:number, y:number){
+  w.hazards.push({
+    x, y, r: 12, hp: 100,
+    vx: (Math.random()*0.6-0.3),
+    vy: (Math.random()*0.6-0.3)
+  });
+}
+
+
+
+import type { Application } from "pixi.js";
+import { eventToWorld } from "../../utilidades/camera";
+
+/** Colocar COMIDA desde un MouseEvent (usa clientX/Y y convierte a mundo). */
+export function placeFoodFromScreen(app: Application, w: World, ev: MouseEvent, amount=10){
+  const p = eventToWorld(app, w, ev.clientX, ev.clientY);
+  return placeFood(w, p.x, p.y, amount);
+}
+
+/** Colocar PATRÓN desde un MouseEvent (usa clientX/Y y convierte a mundo). */
+export function placePatternFromScreen(app: Application, w: World, ev: MouseEvent){
+  const p = eventToWorld(app, w, ev.clientX, ev.clientY);
+  return placePattern(w, p.x, p.y);
+}
+
+/** Colocar PELIGRO desde un MouseEvent (usa clientX/Y y convierte a mundo). */
+export function placeHazardFromScreen(app: Application, w: World, ev: MouseEvent){
+  const p = eventToWorld(app, w, ev.clientX, ev.clientY);
+  return placeHazard(w, p.x, p.y);
+}
+
+/**
+ * (Opcional) Enlaza el clic derecho del canvas para colocar comida/patrón/peligro
+ * con Shift/Ctrl. Devuelve un "unsub" para quitar el listener si hiciera falta.
+ */
+export function bindContextInputOnCanvas(app: Application, w: World){
+  const view = app.view as HTMLCanvasElement;
+  const onCtx = (ev: MouseEvent) => {
+    ev.preventDefault();
+    if (ev.ctrlKey)      placeHazardFromScreen(app, w, ev);
+    else if (ev.shiftKey)placePatternFromScreen(app, w, ev);
+    else                 placeFoodFromScreen(app, w, ev, 10);
+  };
+  view.addEventListener("contextmenu", onCtx, { passive: false });
+  return () => view.removeEventListener("contextmenu", onCtx);
+}
+
