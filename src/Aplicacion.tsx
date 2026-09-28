@@ -8,7 +8,8 @@ import type { World } from "./hexant/tipos";
 import { defaultCfg, Cfg } from "./hexant/juego/configuracion/predeterminados";
 import { crearMundoInicial, bootstrapWorld } from "./hexant/juego";
 import { placeFood, placeHazard, placePattern } from "./hexant/juego/sistemas/SistemaEntrada";
-import { ensureRendererMatchesCSS, eventToWorld } from "./hexant/utilidades/camera";
+import { ensureRendererMatchesCSS, ensureNeonCard, eventToWorld, centerCameraOn } from "./hexant/utilidades/camera";
+import { findNatalHex } from "./hexant/utilidades/busqueda";
 
 export default function Aplicacion() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -25,20 +26,22 @@ export default function Aplicacion() {
     let unresize: (() => void) | null = null;
 
     (async () => {
+      // Sin resizeTo: el tamaño lo manda el CSS del canvas (ensureRendererMatchesCSS).
+      // Con ambos, al redimensionar la ventana el buffer quedaba del tamaño del host y se veía escalado.
       app = new Application();
       await app.init({
         background: "#0b0b0b",
-        resizeTo: hostRef.current!,
         antialias: true,
       });
       if (!hostRef.current) return;
 
       hostRef.current.appendChild(app.canvas);
 
-      // sincroniza buffer interno con tamaño CSS/DPR
+      // estilo card ANTES de medir, y buffer interno = tamaño CSS
+      ensureNeonCard(app.canvas);
       unresize = ensureRendererMatchesCSS(app);
 
-      //  Espera un frame para que ResizeObserver aplique el tamaño real
+      //  Espera un frame para que el layout aplique el tamaño real
       await new Promise(requestAnimationFrame);
 
       // Dimensiones reales del renderer
@@ -49,13 +52,9 @@ export default function Aplicacion() {
       w = crearMundoInicial(W, H);
       bootstrapWorld(w, cfg, W * 0.5, H * 0.5);
 
-      // Centra la cámara sobre la reina por seguridad
-      const q = w.hexes.find(h => (h as any).host === "queen") as any;
-      (w as any).camera = (w as any).camera ?? { x: 0, y: 0, scale: 1 };
-      if (q) {
-        (w as any).camera.x = q.cx - W * 0.5;
-        (w as any).camera.y = q.cy - H * 0.5;
-      }
+      // Cámara centrada en el natal
+      const q = findNatalHex(w);
+      if (q) centerCameraOn(app, w, q.cx, q.cy);
 
       motor = new MotorDeRender(app);
       overlay = new OverlayScout(app);
@@ -107,7 +106,7 @@ export default function Aplicacion() {
     <div
       ref={hostRef}
       style={{ width: "100%", height: "100vh", overflow: "hidden", background: "#0b0b0b" }}
-      title="Click derecho: comida (10). Shift: patrón. Ctrl: peligro."
+      title="Click derecho: comida (25). Shift: patrón. Ctrl: peligro. WASD/arrastrar: mover. Rueda: zoom. H: natal."
     />
   );
 }

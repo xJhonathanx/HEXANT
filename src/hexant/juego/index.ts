@@ -24,44 +24,37 @@ export function crearMundoInicial(W:number, H:number): World {
   };
 }
 
-/** Bootstrap: crea reina, una semilla de comida y hormigas iniciales. */
+/** Bootstrap: crea el hex natal (reina), una semilla de comida y hormigas iniciales. */
 export function bootstrapWorld(w: World, cfg: Cfg, cx: number, cy: number) {
-  // Garantiza reina central si no existe
-  if (!w.hexes.some(h=>h.host==="queen")){
-    const S = 36;
-    w.hexes.push({
+  // Natal: un único hex de reina (si ya existe se reutiliza, nunca se duplica)
+  let queenHex = w.hexes.find(h => h.host === "queen");
+  if (!queenHex) {
+    queenHex = {
       id: w.nextHexId++,
-      cx, cy, sidePx: S,
-      host: "queen", capacity: 999, occupancy: 0,
-      completed: true, aq: 0, ar: 0
-    } as any);
+      cx, cy,
+      sidePx: 36,
+      targetUnits: 0, builtUnits: 0,
+      host: "queen",
+      capacity: 999, occupancy: 0,
+      completed: true,
+      stockUnd: 0,
+      eggs: undefined,
+      decos: [],
+      aq: 0, ar: 0, connections: 0,
+    };
+    w.hexes.push(queenHex);
   }
-  const S = 38;
-
-  // Reina
-  const queenHex: Hex = {
-    id: w.nextHexId++,
-    cx, cy,
-    sidePx: S,
-    targetUnits: 0, builtUnits: 0,
-    host: "queen",
-    capacity: 0, occupancy: 0,
-    completed: true,
-    stockUnd: 0,
-    eggs: undefined,
-    decos: [],
-    aq: 0, ar: 0, connections: 0,
-  };
-  w.hexes.push(queenHex);
+  const S = queenHex.sidePx;
+  const qx = queenHex.cx, qy = queenHex.cy;
 
   // Semilla de comida (para arrancar)
   const seed = 80;
-  w.food.push({ x: cx + S * 1.2, y: cy, amount: seed, initial: seed });
+  w.food.push({ x: qx + S * 1.2, y: qy, amount: seed, initial: seed });
 
   // Hormigas iniciales sobre la reina
-  if (cfg.initialBuilder) w.ants.push(newAnt(cx, cy, "builder", w, queenHex.id));
+  if (cfg.initialBuilder) w.ants.push(newAnt(qx, qy, "builder", w, queenHex.id));
   for (let i = 0; i < Math.max(0, cfg.initialWorkers); i++) {
-    w.ants.push(newAnt(cx, cy, "worker", w, queenHex.id));
+    w.ants.push(newAnt(qx, qy, "worker", w, queenHex.id));
   }
 }
 

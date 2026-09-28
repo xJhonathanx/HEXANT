@@ -13,6 +13,11 @@ export function nearestHexWithStock(w:World, x:number, y:number): Hex | null {
   return best;
 }
 
+/** Hex natal (el de la reina) */
+export function findNatalHex(w:World): Hex | null {
+  return w.hexes.find(h => h.host === "queen") ?? null;
+}
+
 /** Hex de la constructora o el de la reina si no existe */
 export function findBuilderHex(w:World): Hex | null {
   const b = w.hexes.find(h => h.host === "builder");

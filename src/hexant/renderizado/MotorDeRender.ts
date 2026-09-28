@@ -5,6 +5,13 @@ import type { World, Ant } from "../tipos";
 import { GRID_COLOR, GRID_ALPHA } from "../juego/configuracion/predeterminados";
 import { drawAnt } from "./renderizadores/HormigaRender";
 import { CameraInput } from "../input/CameraInput";
+import { findNatalHex } from "../utilidades/busqueda";
+import { getCamera, natalDomeRadius, natalNavRadius } from "../utilidades/camera";
+
+const NATAL_COLOR = 0xffe26a;
+const HUD_HINT =
+  "WASD/Flechas o arrastrar: mover · Rueda o +/-: zoom · H: volver al natal · Minimapa: saltar · " +
+  "Clic der.: comida (Shift patrón, Ctrl peligro)";
 
 export class MotorDeRender {
   private camInput?: CameraInput;
@@ -32,11 +39,18 @@ export class MotorDeRender {
   private hud = new Container();
   private hudLabel: Text;
   private hudMini: Graphics = new Graphics();
+  private hudNatal: Graphics = new Graphics();   // flecha al natal cuando está fuera de pantalla
+  private hudNatalLabel: Text;
+  private hudHint: Text;
   private animT: number = 0;
+
+  // layout del minimapa (coords de renderer) para convertir clics en puntos de mundo
+  private mini: { x:number; y:number; w:number; h:number; cx:number; cy:number; k:number } | null = null;
 
   // graphics únicos para bg y grid
   private gBg   = new Graphics();
   private gGrid = new Graphics();
+  private gridKey = "";
 
   private hexPool: Graphics[] = [];    private hexUsed = 0;
   private foodPool: Graphics[] = [];   private foodUsed = 0;
@@ -74,14 +88,42 @@ export class MotorDeRender {
 
     this.hudLabel = new Text({
       text: "",
-      style: { fill: 0xbfd6d6, fontSize: 14, fontFamily: "monospace" }
+      style: { fill: 0xbfd6d6, fontSize: 14, fontFamily: "monospace", wordWrap: true, wordWrapWidth: 800 }
     });
     this.hudLabel.x = 8; this.hudLabel.y = 6;
     this.hud.addChild(this.hudLabel);
 
-    
-    this.hud.addChild(this.hudMini);this.fx.zIndex = 2; this.mundo.zIndex = 1; this.hud.zIndex = 3;
+    this.hudNatalLabel = new Text({
+      text: "NATAL · H",
+      style: { fill: NATAL_COLOR, fontSize: 11, fontFamily: "monospace" }
+    });
+    this.hudNatalLabel.anchor.set(0.5);
+    this.hudNatalLabel.visible = false;
+
+    this.hudHint = new Text({
+      text: HUD_HINT,
+      style: { fill: 0x6f8f8f, fontSize: 11, fontFamily: "monospace", wordWrap: true, wordWrapWidth: 800 }
+    });
+    this.hudHint.x = 8;
+
+    this.hud.addChild(this.hudMini, this.hudNatal, this.hudNatalLabel, this.hudHint);
+    this.fx.zIndex = 2; this.mundo.zIndex = 1; this.hud.zIndex = 3;
     this.app.stage.sortChildren();
+  }
+
+  destroy(){
+    this.camInput?.destroy();
+    this.camInput = undefined;
+  }
+
+  /** Coords del renderer -> punto de mundo, si caen dentro del minimapa. */
+  minimapToWorld(rx: number, ry: number){
+    const m = this.mini;
+    if (!m || rx < m.x || rx > m.x + m.w || ry < m.y || ry > m.y + m.h) return null;
+    return {
+      x: m.cx + (rx - (m.x + m.w / 2)) / m.k,
+      y: m.cy + (ry - (m.y + m.h / 2)) / m.k,
+    };
   }
 
   // ===== utils =====
@@ -129,12 +171,13 @@ export class MotorDeRender {
   }
   
   // === Grilla gris única (ajusta grosor con el zoom)
+  // Cubre el viewport esté donde esté la cámara; solo se rehace si la cámara cambió.
   private drawGrid(w:World){
-    const q = w.hexes.find(h => (h as any).host === "queen");
-    if (!q){ this.gGrid.clear(); return; }
+    const q = findNatalHex(w);
+    if (!q){ this.gGrid.clear(); this.gridKey = ""; return; }
 
-    const cam = (w as any).camera ?? { x:0, y:0, scale:1 };
-    const s = cam.scale ?? 1;
+    const cam = getCamera(w);
+    const s = cam.scale || 1;
 
     // viewport en mundo
     const W = this.app.renderer.width  / s;
@@ -142,31 +185,37 @@ export class MotorDeRender {
     const x0 = cam.x ?? 0;
     const y0 = cam.y ?? 0;
 
-    const S = (q as any).sidePx as number;
-    const rings = Math.ceil(Math.hypot(W, H) / (S * 1.5)) + 2;
+    const S = q.sidePx;
+    const key = `${x0}|${y0}|${s}|${W}|${H}|${S}|${q.cx}|${q.cy}`;
+    if (key === this.gridKey) return;
+    this.gridKey = key;
+
+    // rango axial (relativo al natal) que cubre el viewport + 1 celda de margen
+    const colW = Math.sqrt(3) * S;
+    const left = x0 - q.cx - S, right  = x0 + W - q.cx + S;
+    const top  = y0 - q.cy - S, bottom = y0 + H - q.cy + S;
+    const rMin = Math.floor(top / (1.5 * S)), rMax = Math.ceil(bottom / (1.5 * S));
+
+    // vértices pointy-top
+    const vx: number[] = [], vy: number[] = [];
+    for (let i = 0; i < 6; i++){
+      const a = Math.PI/6 + i*(Math.PI/3);
+      vx.push(S*Math.cos(a)); vy.push(S*Math.sin(a));
+    }
 
     this.gGrid.clear();
-
-    const ang0 = Math.PI/6; // pointy-top
-    for (let r = -rings; r <= rings; r++){
-      for (let qax = -rings; qax <= rings; qax++){
-        // centro de celda en mundo
+    for (let r = rMin; r <= rMax; r++){
+      const qMin = Math.floor(left / colW - r/2), qMax = Math.ceil(right / colW - r/2);
+      for (let qax = qMin; qax <= qMax; qax++){
         const off = axialToPixelPT(qax, r, S);
-        const cx = (q as any).cx + off.x;
-        const cy = (q as any).cy + off.y;
-
-        // culling por viewport expandido
-        if (cx < x0 - S || cx > x0 + W + S || cy < y0 - S || cy > y0 + H + S) continue;
-
-        this.gGrid.moveTo(cx + S*Math.cos(ang0), cy + S*Math.sin(ang0));
-        for (let i=1;i<6;i++){
-          const a = ang0 + i*(Math.PI/3);
-          this.gGrid.lineTo(cx + S*Math.cos(a), cy + S*Math.sin(a));
-        }
-        this.gGrid.closePath()
-          .stroke({ color: GRID_COLOR, alpha: GRID_ALPHA, width: 1 / s, alignment: 0.5 });
+        const cx = q.cx + off.x;
+        const cy = q.cy + off.y;
+        this.gGrid.moveTo(cx + vx[0], cy + vy[0]);
+        for (let i = 1; i < 6; i++) this.gGrid.lineTo(cx + vx[i], cy + vy[i]);
+        this.gGrid.closePath();
       }
     }
+    this.gGrid.stroke({ color: GRID_COLOR, alpha: GRID_ALPHA, width: 1 / s, alignment: 0.5 });
   }
 
 
@@ -258,10 +307,14 @@ export class MotorDeRender {
     this.animT += (this.app.ticker?.deltaMS ?? 16.6) / 16.6;
     // avance de tiempo normalizado (≈1 por frame a 60fps)
     this.animT += (this.app.ticker?.deltaMS ?? 16.6) / 16.6;
-  // Inicializar input de cámara una sola vez (WASD + Ctrl+rueda)
+  // Inicializar input de cámara una sola vez (WASD/flechas, arrastre, rueda, H, minimapa)
   if (!this._camInit) {
     this._camInit = true;
-    try { this.camInput = new CameraInput(this.app, w); } catch {}
+    try {
+      this.camInput = new CameraInput(this.app, w, {
+        minimapToWorld: (rx, ry) => this.minimapToWorld(rx, ry),
+      });
+    } catch {}
   }
 
   // Aplicar cámara
@@ -292,11 +345,20 @@ export class MotorDeRender {
   const bank     = Math.round((w as any).stockFood ?? 0);
   const eggsAtQueen = (w.eggs ?? []).filter((e: any) => e.state === "atQueen").length;
 
-  this.hudLabel.text =
-      `W:${workers}  B:${builders}  S:${soldiers} | Food:${foods} Haz:${hazards} | Banco:${bank} | Huevos:${eggsAtQueen}`;
+  const zoom     = getCamera(w).scale || 1;
 
-  // Minimapa
+  this.hudLabel.text =
+      `W:${workers}  B:${builders}  S:${soldiers} | Food:${foods} Haz:${hazards} | Banco:${bank} | Huevos:${eggsAtQueen} | Zoom x${zoom.toFixed(2)}`;
+  // textos del HUD: que no se metan bajo el minimapa (200px + margen) ni se salgan del canvas
+  const labelWrap = Math.max(160, this.app.renderer.width - 230);
+  if (this.hudLabel.style.wordWrapWidth !== labelWrap) this.hudLabel.style.wordWrapWidth = labelWrap;
+  const hintWrap = Math.max(200, this.app.renderer.width - 16);
+  if (this.hudHint.style.wordWrapWidth !== hintWrap) this.hudHint.style.wordWrapWidth = hintWrap;
+  this.hudHint.y = this.app.renderer.height - this.hudHint.height - 6;
+
+  // Minimapa + indicador del natal fuera de pantalla
   this.drawMinimap(w);
+  this.drawNatalIndicator(w);
 
   // Ocultar sobrantes de pools
   this.hideRest(this.hexPool, this.hexUsed);
@@ -559,33 +621,102 @@ export class MotorDeRender {
       }
     }
   }
-  // === HUD: Minimap de celdas visitadas (FOW) ===
+  // === HUD: Minimapa centrado en el natal (zona navegable, AIR, hexes, FOW y viewport) ===
   private drawMinimap(w: World){
-    const M:any = (w as any).meta ?? {};
-    const fow:any = M.fow;
-    this.hudMini.clear();
-    if (!fow || !fow.visited || (fow.visited.size ?? 0) === 0) return;
+    const g = this.hudMini;
+    g.clear();
+    const q = findNatalHex(w);
+    if (!q){ this.mini = null; return; }
 
     const pad = 10;
     const mw = 200, mh = 160;            // tamaño del minimapa
     const x = (this.app.renderer.width - mw - pad);
     const y = pad;
+    const ox = x + mw * 0.5, oy = y + mh * 0.5;   // natal en el minimapa
 
-    // fondo
-    this.hudMini.rect(x, y, mw, mh).fill(0x0b0f14, 0.85).stroke({ color: 0x13202a, width: 1, alpha: 0.9 });
+    const navR = natalNavRadius(w);
+    const k = (Math.min(mw, mh) * 0.5 - 6) / navR; // px de minimapa por px de mundo
+    this.mini = { x, y, w: mw, h: mh, cx: q.cx, cy: q.cy, k };
+    const mx = (wx: number) => ox + (wx - q.cx) * k;
+    const my = (wy: number) => oy + (wy - q.cy) * k;
 
-    const qh = w.hexes.find(h => (h as any).host === "queen") as any;
-    const S  = (qh?.sidePx ?? 36) as number;
-    const scale = (fow.scale ?? 3) as number;
+    // fondo + límite navegable + AIR
+    g.rect(x, y, mw, mh).fill({ color: 0x0b0f14, alpha: 0.85 }).stroke({ color: 0x13202a, width: 1, alpha: 0.9 });
+    g.circle(ox, oy, navR * k).stroke({ color: 0x1d3140, width: 1, alpha: 0.9 });
+    g.circle(ox, oy, natalDomeRadius(w) * k)
+      .fill({ color: 0x11161b, alpha: 1 })
+      .stroke({ color: 0x0aa3a3, width: 1, alpha: 0.55 });
 
-    // origen centrado
-    const cx = x + mw * 0.5, cy = y + mh * 0.5;
-
-    for (const key of fow.visited as Set<string>){
-      const [aq, ar] = key.split(",").map(Number);
-      const p = axialToPixelPT(aq, ar, scale);
-      this.hudMini.circle(cx + p.x, cy + p.y, 2).fill(0x4b5563, 0.95);
+    // celdas visitadas por el scout (FOW)
+    const fow: any = (w.meta as any)?.fow;
+    if (fow?.visited){
+      for (const key of fow.visited as Set<string>){
+        const [aq, ar] = key.split(",").map(Number);
+        const p = axialToPixelPT(aq, ar, q.sidePx);
+        g.circle(mx(q.cx + p.x), my(q.cy + p.y), 1.5).fill({ color: 0x4b5563, alpha: 0.95 });
+      }
     }
+
+    // hexes de la colonia
+    for (const h of w.hexes){
+      if (h === q) continue;
+      g.circle(mx(h.cx), my(h.cy), 2).fill({ color: h.completed ? 0x00e5ff : 0x7f2bff, alpha: 0.95 });
+    }
+
+    // natal
+    g.circle(ox, oy, 3).fill({ color: NATAL_COLOR, alpha: 1 });
+
+    // viewport actual (recortado al minimapa)
+    const cam = getCamera(w);
+    const s = cam.scale || 1;
+    const vx0 = Math.max(x, mx(cam.x)), vx1 = Math.min(x + mw, mx(cam.x + this.app.renderer.width  / s));
+    const vy0 = Math.max(y, my(cam.y)), vy1 = Math.min(y + mh, my(cam.y + this.app.renderer.height / s));
+    if (vx1 > vx0 && vy1 > vy0){
+      g.rect(vx0, vy0, vx1 - vx0, vy1 - vy0).stroke({ color: 0xcfe8ff, width: 1, alpha: 0.8 });
+    }
+  }
+
+  // === HUD: flecha en el borde apuntando al natal cuando queda fuera de pantalla ===
+  private drawNatalIndicator(w: World){
+    const g = this.hudNatal;
+    g.clear();
+    this.hudNatalLabel.visible = false;
+    const q = findNatalHex(w);
+    if (!q) return;
+
+    const cam = getCamera(w);
+    const s = cam.scale || 1;
+    const W = this.app.renderer.width, H = this.app.renderer.height;
+    const sx = (q.cx - cam.x) * s, sy = (q.cy - cam.y) * s;   // natal en pantalla
+    const r = q.sidePx * s;
+    if (sx > -r && sx < W + r && sy > -r && sy < H + r) return;  // se ve (aunque sea en parte)
+
+    // intersección del rayo centro→natal con el borde (margen extra arriba/abajo por los textos del HUD)
+    const mX = 26, mTop = 46, mBottom = 38;
+    const dx = sx - W / 2, dy = sy - H / 2;
+    const t = Math.min(
+      dx > 0 ? (W / 2 - mX) / dx : dx < 0 ? (mX - W / 2) / dx : Infinity,
+      dy > 0 ? (H / 2 - mBottom) / dy : dy < 0 ? (mTop - H / 2) / dy : Infinity,
+    );
+    const ax = W / 2 + dx * t, ay = H / 2 + dy * t;
+    const ux = dx / Math.hypot(dx, dy), uy = dy / Math.hypot(dx, dy);
+    const nx = -uy, ny = ux;
+
+    // punta de flecha (con muesca) hacia el natal
+    g.poly([
+      ax + ux * 10,          ay + uy * 10,
+      ax - ux * 8 + nx * 7,  ay - uy * 8 + ny * 7,
+      ax - ux * 3,           ay - uy * 3,
+      ax - ux * 8 - nx * 7,  ay - uy * 8 - ny * 7,
+    ]).fill({ color: NATAL_COLOR, alpha: 0.95 });
+    g.circle(ax, ay, 13).stroke({ color: NATAL_COLOR, width: 1, alpha: 0.45 });
+
+    // etiqueta hacia dentro de la pantalla, sin pisar el aro
+    const lbl = this.hudNatalLabel;
+    const off = 13 + 6 + Math.abs(ux) * lbl.width / 2 + Math.abs(uy) * lbl.height / 2;
+    lbl.x = ax - ux * off;
+    lbl.y = ay - uy * off;
+    lbl.visible = true;
   }
   // Línea desde el borde del AIR hasta el SCOUT (usa meta.umbilical*)
   private drawUmbilical(w: World){

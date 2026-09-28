@@ -95,4 +95,11 @@ export const FOOD_NODE_SIZE          = 10;     // und por nodo
 /* ====== Cámara ====== */
 export const MIN_ZOOM = 0.4;
 export const MAX_ZOOM = 2.5;
-export const CAM_PAN_SPEED = 8; // px de mundo por tick
+export const CAM_PAN_SPEED = 8;          // px de pantalla por frame (a 60 fps), igual con cualquier zoom
+export const CAM_WHEEL_ZOOM_BASE = 1.0015; // factor por px de rueda
+export const CAM_KEY_ZOOM_STEP = 1.15;   // factor por pulsación de +/-
+export const CAM_FOCUS_LERP = 10;        // velocidad del vuelo al natal (1/s)
+
+/* ====== Natal: zona navegable ====== */
+export const NAV_RADIUS_MIN       = 1200; // px de mundo alrededor del natal
+export const NAV_RADIUS_DOME_MULT = 4;    // o 4× el radio del AIR si es mayor
